@@ -146,13 +146,6 @@ lv_obj_t* screen_wind_create(lv_obj_t *parent) {
     lv_obj_add_event_cb(s_compass_canvas, compass_draw_cb, LV_EVENT_DRAW_MAIN, nullptr);
     lv_obj_clear_flag(s_compass_canvas, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 
-    // Title at Top (y = 42)
-    lv_obj_t *title = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(title, COL_TEXT_SOFT, 0);
-    lv_label_set_text(title, "WIND COMPASS");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 42);
-
     // Cardinal Labels on the Bezel
     lv_obj_t *n_lbl = lv_label_create(s_panel);
     lv_obj_set_style_text_font(n_lbl, &lv_font_montserrat_18, 0);

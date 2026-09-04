@@ -47,23 +47,11 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
     lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
-    // 1. Top Header Section (y = 30..72)
-    lv_obj_t *title_box = lv_obj_create(s_panel);
-    lv_obj_remove_style_all(title_box);
-    lv_obj_set_size(title_box, 260, 20);
-    lv_obj_align(title_box, LV_ALIGN_TOP_MID, 0, 32);
-
-    lv_obj_t *title_lbl = lv_label_create(title_box);
-    lv_label_set_text(title_lbl, LV_SYMBOL_SETTINGS "  SYSTEM INFO");
-    lv_obj_set_style_text_color(title_lbl, COL_ACCENT_CYAN, 0);
-    lv_obj_set_style_text_font(title_lbl, &lv_font_montserrat_14, 0);
-    lv_obj_center(title_lbl);
-
-    // Status Pill Container (y = 56)
+    // Status Pill Container (y = 42)
     lv_obj_t *status_cont = lv_obj_create(s_panel);
     lv_obj_remove_style_all(status_cont);
     lv_obj_set_size(status_cont, 260, 20);
-    lv_obj_align(status_cont, LV_ALIGN_TOP_MID, 0, 56);
+    lv_obj_align(status_cont, LV_ALIGN_TOP_MID, 0, 44);
     lv_obj_clear_flag(status_cont, LV_OBJ_FLAG_SCROLLABLE);
 
     // Glowing Dot
@@ -82,11 +70,11 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_obj_set_style_text_font(s_status_badge, &lv_font_montserrat_12, 0);
     lv_obj_align(s_status_badge, LV_ALIGN_LEFT_MID, 36, 0);
 
-    // 2. Network Card (y = 86..210, width 340, height 124)
+    // 2. Network Card (y = 74..198, width 340, height 124)
     lv_obj_t *card_net = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_net);
     lv_obj_set_size(card_net, 340, 124);
-    lv_obj_align(card_net, LV_ALIGN_TOP_MID, 0, 86);
+    lv_obj_align(card_net, LV_ALIGN_TOP_MID, 0, 74);
     lv_obj_set_style_bg_color(card_net, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_net, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(card_net, COL_CARD_BORDER, 0);
@@ -131,11 +119,11 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_obj_set_style_text_font(s_mac_lbl, &lv_font_montserrat_12, 0);
     lv_obj_align(s_mac_lbl, LV_ALIGN_TOP_LEFT, 0, 84);
 
-    // 3. Tempest Station Card (y = 218..308, width 340, height 90)
+    // 3. Tempest Station Card (y = 206..296, width 340, height 90)
     lv_obj_t *card_st = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_st);
     lv_obj_set_size(card_st, 340, 90);
-    lv_obj_align(card_st, LV_ALIGN_TOP_MID, 0, 218);
+    lv_obj_align(card_st, LV_ALIGN_TOP_MID, 0, 206);
     lv_obj_set_style_bg_color(card_st, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_st, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(card_st, COL_CARD_BORDER, 0);
@@ -163,11 +151,11 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_obj_set_style_text_font(s_feed_lbl, &lv_font_montserrat_12, 0);
     lv_obj_align(s_feed_lbl, LV_ALIGN_TOP_LEFT, 0, 46);
 
-    // 4. Lower Hardware & System Card (y = 316..386, width 280, height 70)
+    // 4. Lower Hardware & System Card (y = 304..374, width 280, height 70)
     lv_obj_t *card_sys = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_sys);
     lv_obj_set_size(card_sys, 280, 70);
-    lv_obj_align(card_sys, LV_ALIGN_TOP_MID, 0, 316);
+    lv_obj_align(card_sys, LV_ALIGN_TOP_MID, 0, 304);
     lv_obj_set_style_bg_color(card_sys, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_sys, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(card_sys, COL_CARD_BORDER, 0);

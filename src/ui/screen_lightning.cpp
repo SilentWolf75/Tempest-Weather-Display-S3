@@ -144,13 +144,6 @@ lv_obj_t* screen_lightning_create(lv_obj_t *parent) {
     lv_obj_add_event_cb(s_radar_canvas, radar_draw_cb, LV_EVENT_DRAW_MAIN, nullptr);
     lv_obj_clear_flag(s_radar_canvas, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 
-    // Title (y = 38)
-    lv_obj_t *title = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(title, COL_TEXT_SOFT, 0);
-    lv_label_set_text(title, "LIGHTNING RADAR");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 38);
-
     // Concentric Range Ring distance labels on top-right quadrant
     lv_obj_t *lbl_5m = lv_label_create(s_panel);
     lv_obj_set_style_text_font(lbl_5m, &lv_font_montserrat_12, 0);
