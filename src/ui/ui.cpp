@@ -90,16 +90,24 @@ void ui_update() {
     screen_info_update(state);
 }
 
+static uint32_t s_pause_scroll_until = 0;
+
+void ui_pause_autoscroll(uint32_t ms) {
+    s_pause_scroll_until = millis() + ms;
+}
+
 void ui_set_screen(int idx) {
     if (!s_tv) return;
     if (idx < 0) idx = 0;
     if (idx > 3) idx = 3;
-    lv_obj_set_tile_id(s_tv, idx, 0, LV_ANIM_ON);
+    lv_obj_set_tile_id(s_tv, idx, 0, LV_ANIM_OFF);
     update_dots(idx);
+    ui_pause_autoscroll(10000);
 }
 
 void ui_next_screen() {
     if (!s_tv) return;
+    if (millis() < s_pause_scroll_until) return;
     // Don't auto-scroll while viewing the Info screen (screen 3)
     if (s_active_page >= 3) return;
 

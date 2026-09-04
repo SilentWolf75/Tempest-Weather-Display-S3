@@ -4,6 +4,7 @@
 #include "tempest_rest.h"
 #include "display.h"
 #include "config.h"
+#include "ui/ui.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -879,6 +880,67 @@ static void handle_api_forecast_refresh() {
     s_server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
+static void handle_view() {
+    if (s_server.hasArg("i")) {
+        int idx = s_server.arg("i").toInt();
+        ui_set_screen(idx);
+        s_server.send(200, "application/json", "{\"status\":\"ok\"}");
+    } else {
+        s_server.send(400, "text/plain", "Missing i parameter");
+    }
+}
+
+static void handle_shot_bmp() {
+    const uint16_t *fb = display::captureFrame();
+    if (!fb) {
+        s_server.send(503, "text/plain", "Capture buffer unavailable");
+        return;
+    }
+
+    WiFiClient client = s_server.client();
+    const uint32_t w = SCREEN_W;
+    const uint32_t h = SCREEN_H;
+    const uint32_t row_bytes = w * 3;
+    const uint32_t pad = (4 - (row_bytes % 4)) % 4;
+    const uint32_t image_size = (row_bytes + pad) * h;
+    const uint32_t file_size = 54 + image_size;
+
+    uint8_t hdr[54];
+    memset(hdr, 0, 54);
+    hdr[0] = 'B'; hdr[1] = 'M';
+    hdr[2] = file_size & 0xFF; hdr[3] = (file_size >> 8) & 0xFF; hdr[4] = (file_size >> 16) & 0xFF; hdr[5] = (file_size >> 24) & 0xFF;
+    hdr[10] = 54;
+    hdr[14] = 40;
+    hdr[18] = w & 0xFF; hdr[19] = (w >> 8) & 0xFF;
+    hdr[22] = h & 0xFF; hdr[23] = (h >> 8) & 0xFF;
+    hdr[26] = 1;
+    hdr[28] = 24;
+    hdr[34] = image_size & 0xFF; hdr[35] = (image_size >> 8) & 0xFF; hdr[36] = (image_size >> 16) & 0xFF; hdr[37] = (image_size >> 24) & 0xFF;
+
+    s_server.setContentLength(file_size);
+    s_server.send(200, "image/bmp", "");
+
+    client.write(hdr, 54);
+
+    uint8_t row_buf[SCREEN_W * 3 + 4];
+    memset(row_buf, 0, sizeof(row_buf));
+
+    for (int y = (int)h - 1; y >= 0; --y) {
+        const uint16_t *src_row = &fb[y * w];
+        uint8_t *dst = row_buf;
+        for (uint32_t x = 0; x < w; ++x) {
+            uint16_t c = src_row[x];
+            uint8_t r = ((c >> 11) & 0x1F) * 255 / 31;
+            uint8_t g = ((c >> 5)  & 0x3F) * 255 / 63;
+            uint8_t b = (c         & 0x1F) * 255 / 31;
+            *dst++ = b;
+            *dst++ = g;
+            *dst++ = r;
+        }
+        client.write(row_buf, row_bytes + pad);
+    }
+}
+
 static void handle_api_restart() {
     s_server.send(200, "application/json", "{\"status\":\"restarting\"}");
     delay(500);
@@ -904,6 +966,8 @@ void web_config_server_begin() {
     s_server.on("/api/wifi_scan", HTTP_GET, handle_api_wifi_scan);
     s_server.on("/api/forecast_refresh", HTTP_POST, handle_api_forecast_refresh);
     s_server.on("/api/restart", HTTP_POST, handle_api_restart);
+    s_server.on("/shot.bmp", HTTP_GET, handle_shot_bmp);
+    s_server.on("/view", HTTP_GET, handle_view);
 
     s_server.enableCORS(true);
     s_server.begin();

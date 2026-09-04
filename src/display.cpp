@@ -18,6 +18,8 @@ static lv_indev_drv_t     s_indev_drv;
 static lv_color_t        *s_buf1 = nullptr;
 static lv_color_t        *s_buf2 = nullptr;
 static lv_color_t        *s_rotBuf = nullptr;
+static lv_color_t        *s_frameBuf = nullptr;
+static volatile bool      s_capture = false;
 
 #ifndef DEFAULT_ROTATION
 #define DEFAULT_ROTATION 270
@@ -35,6 +37,12 @@ static void draw_block(int16_t x, int16_t y, lv_color_t *pixels, uint16_t w, uin
 static void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *px) {
     int16_t  w = (int16_t)(area->x2 - area->x1 + 1);
     int16_t  h = (int16_t)(area->y2 - area->y1 + 1);
+
+    if (s_capture && s_frameBuf) {
+        for (int j = 0; j < h; ++j) {
+            memcpy(&s_frameBuf[(area->y1 + j) * SCREEN_W + area->x1], &px[j * w], w * sizeof(lv_color_t));
+        }
+    }
     const uint16_t angle = s_rot;
 
     lv_color_t *out = px;
@@ -149,6 +157,10 @@ bool begin() {
     }
 
     s_rotBuf = (lv_color_t *)heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    s_frameBuf = (lv_color_t *)heap_caps_calloc((size_t)SCREEN_W * SCREEN_H, sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    if (!s_frameBuf) {
+        Serial.println("[display] WARNING: Framebuffer capture buffer allocation failed");
+    }
 
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, buf_px);
 
@@ -195,6 +207,16 @@ void setRotation(uint16_t degrees) {
 
 uint16_t rotation() {
     return s_rot;
+}
+
+const uint16_t* captureFrame() {
+    if (!s_frameBuf) return nullptr;
+    s_capture = true;
+    lv_obj_t *scr = lv_scr_act();
+    if (scr) lv_obj_invalidate(scr);
+    lv_refr_now(NULL);
+    s_capture = false;
+    return (const uint16_t *)s_frameBuf;
 }
 
 } // namespace display

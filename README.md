@@ -12,6 +12,15 @@ A standalone, high-performance desk weather console for the **[WeatherFlow Tempe
 
 ---
 
+## 📸 Live Firmware Screenshots (Running on 1.75" AMOLED)
+
+| Screen 1: Current Weather | Screen 2: Wind Compass | Screen 3: Lightning Radar | Screen 4: System Info |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/img/screens/screen_main.png" width="180" alt="Main Conditions"> | <img src="docs/img/screens/screen_wind.png" width="180" alt="Wind Compass"> | <img src="docs/img/screens/screen_lightning.png" width="180" alt="Lightning Radar"> | <img src="docs/img/screens/screen_info.png" width="180" alt="System Diagnostics"> |
+| Real-time temp, 3D animated sun corona & pressure trend | 360° needle gauge, rapid wind speed & gust indicator | Distance ring radar, closest strike distance & storm alert | Live Wi-Fi RSSI, local IP, mDNS URL, station link & uptime |
+
+---
+
 ## ✨ Features
 
 - **Circular AMOLED UI (LVGL 8.4)**:
