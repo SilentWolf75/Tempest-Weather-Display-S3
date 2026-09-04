@@ -62,7 +62,7 @@ int tempest_get_pressure_history(float *dest_buf, int max_samples) {
 
 void tempest_update_obs(float temp_c, float humidity, float pressure,
                         float wind_avg, float wind_gust, float wind_lull, int wind_dir,
-                        float uv, float solar, float rain_min,
+                        float uv, float solar, float rain_min, int precip_type,
                         float strike_dist, int strike_cnt, float battery, int64_t epoch) {
     if (!s_mutex || xSemaphoreTake(s_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
 
@@ -76,6 +76,19 @@ void tempest_update_obs(float temp_c, float humidity, float pressure,
     s_state.uv_index = uv;
     s_state.solar_wm2 = solar;
     s_state.rain_last_min_mm = rain_min;
+    s_state.rain_rate_mm_hr = rain_min * 60.0f;
+    s_state.precip_type = precip_type;
+
+    if (rain_min > 0.0f) {
+        s_state.is_raining = true;
+        s_state.last_rain_epoch = epoch;
+        s_state.rain_today_mm += rain_min;
+    } else {
+        if (s_state.last_rain_epoch > 0 && (epoch - s_state.last_rain_epoch) > 180) {
+            s_state.is_raining = false;
+        }
+    }
+
     if (strike_dist > 0.0f) {
         s_state.lightning_dist_km = strike_dist;
     }
@@ -158,6 +171,23 @@ void tempest_clear_strike_alert() {
     xSemaphoreGive(s_mutex);
 }
 
+void tempest_update_precip_event(int64_t epoch) {
+    if (!s_mutex || xSemaphoreTake(s_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    s_state.is_raining = true;
+    s_state.last_rain_epoch = epoch;
+    if (s_state.precip_type == 0) s_state.precip_type = 1; // Rain
+    s_state.last_packet_millis = millis();
+    xSemaphoreGive(s_mutex);
+}
+
+void tempest_update_rain_totals(float today_mm, float yesterday_mm, int prob_pct) {
+    if (!s_mutex || xSemaphoreTake(s_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    if (today_mm >= 0.0f) s_state.rain_today_mm = today_mm;
+    if (yesterday_mm >= 0.0f) s_state.rain_yesterday_mm = yesterday_mm;
+    if (prob_pct >= 0) s_state.rain_probability_pct = prob_pct;
+    xSemaphoreGive(s_mutex);
+}
+
 void tempest_update_forecast(const char *conditions, const char *icon,
                             float high_c, float low_c, float feels_c) {
     if (!s_mutex || xSemaphoreTake(s_mutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
@@ -221,6 +251,18 @@ const char* dist_unit_str(UnitSystem u) {
 
 const char* pressure_unit_str(UnitSystem u) {
     return (u == UNIT_IMPERIAL) ? "inHg" : "mb";
+}
+
+float rain_to_unit(float rain_mm, UnitSystem u) {
+    return (u == UNIT_IMPERIAL) ? (rain_mm * 0.0393701f) : rain_mm;
+}
+
+const char* rain_unit_str(UnitSystem u) {
+    return (u == UNIT_IMPERIAL) ? "in" : "mm";
+}
+
+const char* rain_rate_unit_str(UnitSystem u) {
+    return (u == UNIT_IMPERIAL) ? "in/hr" : "mm/hr";
 }
 
 const char* wind_cardinal(int degrees) {

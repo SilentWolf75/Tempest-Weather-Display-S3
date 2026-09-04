@@ -221,7 +221,7 @@
   <!-- Circular AMOLED Bezel Preview with Live Running Firmware -->
   <div class="device-frame">
     <div class="screen">
-      <img id="screen_preview" src="img/screens/screen_main.png?v=102" alt="Running Firmware on AMOLED" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+      <img id="screen_preview" src="img/screens/screen_main.png?v=103" alt="Running Firmware on AMOLED" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
     </div>
   </div>
 
@@ -229,6 +229,7 @@
   <div class="screen-tabs" style="display:flex; gap:8px; margin-bottom:24px; justify-content:center; flex-wrap:wrap;">
     <button type="button" class="tab-btn active" onclick="switchPreview('screen_main.png', this)">☀️ Conditions</button>
     <button type="button" class="tab-btn" onclick="switchPreview('screen_wind.png', this)">🧭 Wind</button>
+    <button type="button" class="tab-btn" onclick="switchPreview('screen_rain.png', this)">🌧️ Rain</button>
     <button type="button" class="tab-btn" onclick="switchPreview('screen_lightning.png', this)">⚡ Lightning</button>
     <button type="button" class="tab-btn" onclick="switchPreview('screen_info.png', this)">ℹ️ System</button>
   </div>
@@ -304,26 +305,31 @@
     <p style="color:var(--soft); font-size:13px; margin:0 0 16px;">
       Direct framebuffer captures from the Waveshare 1.75" round AMOLED display:
     </p>
-    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:16px; text-align:center;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:14px; text-align:center;">
       <div style="background:#141f33; padding:12px; border-radius:12px; border:1px solid var(--border);">
-        <img src="img/screens/screen_main.png?v=102" alt="Current Conditions" style="width:100%; max-width:140px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_main.png', document.querySelectorAll('.tab-btn')[0])">
-        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">1. Current Weather</div>
-        <div style="font-size:11px; color:var(--soft);">3D sun, temp & 24h sparkline</div>
+        <img src="img/screens/screen_main.png?v=103" alt="Current Conditions" style="width:100%; max-width:130px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_main.png', document.querySelectorAll('.tab-btn')[0])">
+        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">1. Weather</div>
+        <div style="font-size:11px; color:var(--soft);">3D sun, temp & sparkline</div>
       </div>
       <div style="background:#141f33; padding:12px; border-radius:12px; border:1px solid var(--border);">
-        <img src="img/screens/screen_wind.png?v=102" alt="Wind Compass" style="width:100%; max-width:140px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_wind.png', document.querySelectorAll('.tab-btn')[1])">
-        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">2. Wind Compass</div>
+        <img src="img/screens/screen_wind.png?v=103" alt="Wind Compass" style="width:100%; max-width:130px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_wind.png', document.querySelectorAll('.tab-btn')[1])">
+        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">2. Wind</div>
         <div style="font-size:11px; color:var(--soft);">360° rapid speed & gust</div>
       </div>
       <div style="background:#141f33; padding:12px; border-radius:12px; border:1px solid var(--border);">
-        <img src="img/screens/screen_lightning.png?v=102" alt="Lightning Radar" style="width:100%; max-width:140px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_lightning.png', document.querySelectorAll('.tab-btn')[2])">
-        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">3. Lightning Radar</div>
+        <img src="img/screens/screen_rain.png?v=103" alt="Rain Gauge" style="width:100%; max-width:130px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_rain.png', document.querySelectorAll('.tab-btn')[2])">
+        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">3. Rain</div>
+        <div style="font-size:11px; color:var(--soft);">Rate arc, today & POP</div>
+      </div>
+      <div style="background:#141f33; padding:12px; border-radius:12px; border:1px solid var(--border);">
+        <img src="img/screens/screen_lightning.png?v=103" alt="Lightning Radar" style="width:100%; max-width:130px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_lightning.png', document.querySelectorAll('.tab-btn')[3])">
+        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">4. Lightning</div>
         <div style="font-size:11px; color:var(--soft);">Distance rings & alerts</div>
       </div>
       <div style="background:#141f33; padding:12px; border-radius:12px; border:1px solid var(--border);">
-        <img src="img/screens/screen_info.png?v=102" alt="System Diagnostics" style="width:100%; max-width:140px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_info.png', document.querySelectorAll('.tab-btn')[3])">
-        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">4. System Info</div>
-        <div style="font-size:11px; color:var(--soft);">Live RSSI, IP, & feed status</div>
+        <img src="img/screens/screen_info.png?v=103" alt="System Diagnostics" style="width:100%; max-width:130px; border-radius:50%; box-shadow:0 6px 16px rgba(0,0,0,0.5); cursor:pointer;" onclick="switchPreview('screen_info.png', document.querySelectorAll('.tab-btn')[4])">
+        <div style="font-size:12px; font-weight:700; color:var(--text); margin-top:8px;">5. System Info</div>
+        <div style="font-size:11px; color:var(--soft);">Live RSSI, IP & status</div>
       </div>
     </div>
   </div>
@@ -335,7 +341,7 @@
 
   <script>
     function switchPreview(img, btn) {
-      document.getElementById('screen_preview').src = 'img/screens/' + img + '?v=102';
+      document.getElementById('screen_preview').src = 'img/screens/' + img + '?v=103';
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
     }

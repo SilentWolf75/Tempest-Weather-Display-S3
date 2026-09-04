@@ -13,8 +13,9 @@ import zlib
 SCREENS = [
     (0, "screen_main",      "Current Weather Conditions"),
     (1, "screen_wind",      "360-Degree Wind Compass"),
-    (2, "screen_lightning", "Lightning Strike Radar"),
-    (3, "screen_info",      "Device & Network Diagnostics"),
+    (2, "screen_rain",      "Rain & Precipitation Gauge"),
+    (3, "screen_lightning", "Lightning Strike Radar"),
+    (4, "screen_info",      "Device & Network Diagnostics"),
 ]
 
 def get(url, timeout=15):
@@ -90,6 +91,27 @@ def main():
                 dest = os.path.join(d, f"{name}.png")
                 nbytes = write_png(dest, w, h, rows, round_mask=True)
             print(f"  [OK] Screen {idx}: {label:30} -> {name}.png ({w}x{h}, {nbytes/1024:.1f} KB)")
+
+            if name == "screen_info":
+                try:
+                    from PIL import Image, ImageFilter
+                    boxes = [
+                        (120, 103, 370, 123),  # Wi-Fi SSID
+                        (100, 125, 220, 145),  # IP address
+                        (120, 168, 275, 188),  # MAC address
+                        (130, 240, 235, 266),  # Station ID
+                    ]
+                    for d in out_dirs:
+                        dest = os.path.join(d, f"{name}.png")
+                        im = Image.open(dest).convert("RGBA")
+                        for box in boxes:
+                            sub = im.crop(box)
+                            sub = sub.filter(ImageFilter.GaussianBlur(radius=8))
+                            im.paste(sub, box)
+                        im.save(dest)
+                    print("  [Privacy] Applied frosted privacy blur to screen_info.png")
+                except Exception as ex:
+                    print(f"  Note: Pillow blur skipped: {ex}")
         except Exception as e:
             print(f"  Error capturing screen {idx} ({name}): {e}")
 

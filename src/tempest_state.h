@@ -23,7 +23,13 @@ struct TempestState {
     float    uv_index;
     float    solar_wm2;
     float    rain_last_min_mm;
+    float    rain_rate_mm_hr;
     float    rain_today_mm;
+    float    rain_yesterday_mm;
+    int      rain_probability_pct;
+    int      precip_type;          // 0: None, 1: Rain, 2: Hail, 3: Rain+Hail
+    int64_t  last_rain_epoch;
+    bool     is_raining;
 
     // Lightning metrics
     float    lightning_dist_km;
@@ -60,8 +66,11 @@ int  tempest_get_pressure_history(float *dest_buf, int max_samples);
 
 void tempest_update_obs(float temp_c, float humidity, float pressure,
                         float wind_avg, float wind_gust, float wind_lull, int wind_dir,
-                        float uv, float solar, float rain_min,
+                        float uv, float solar, float rain_min, int precip_type,
                         float strike_dist, int strike_cnt, float battery, int64_t epoch);
+
+void tempest_update_precip_event(int64_t epoch);
+void tempest_update_rain_totals(float today_mm, float yesterday_mm, int prob_pct);
 
 void tempest_update_rapid_wind(float speed_ms, int dir_deg, int64_t epoch);
 void tempest_update_strike(float dist_km, uint32_t energy, int64_t epoch);
@@ -78,9 +87,11 @@ float temp_to_unit(float temp_c, UnitSystem u);
 float wind_to_unit(float wind_ms, UnitSystem u);
 float dist_to_unit(float dist_km, UnitSystem u);
 float pressure_to_unit(float pressure_mb, UnitSystem u);
-
+float rain_to_unit(float rain_mm, UnitSystem u);
 const char* temp_unit_str(UnitSystem u);
 const char* wind_unit_str(UnitSystem u);
 const char* dist_unit_str(UnitSystem u);
 const char* pressure_unit_str(UnitSystem u);
+const char* rain_unit_str(UnitSystem u);
+const char* rain_rate_unit_str(UnitSystem u);
 const char* wind_cardinal(int degrees);

@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "screen_main.h"
 #include "screen_wind.h"
+#include "screen_rain.h"
 #include "screen_lightning.h"
 #include "screen_info.h"
 #include "tempest_state.h"
@@ -13,13 +14,14 @@ static lv_obj_t *s_tile0 = nullptr;
 static lv_obj_t *s_tile1 = nullptr;
 static lv_obj_t *s_tile2 = nullptr;
 static lv_obj_t *s_tile3 = nullptr;
+static lv_obj_t *s_tile4 = nullptr;
 
-static lv_obj_t *s_dot[4] = { nullptr, nullptr, nullptr, nullptr };
+static lv_obj_t *s_dot[5] = { nullptr, nullptr, nullptr, nullptr, nullptr };
 static int s_active_page = 0;
 
 static void update_dots(int active) {
     s_active_page = active;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         if (!s_dot[i]) continue;
         if (i == active) {
             lv_obj_set_style_bg_color(s_dot[i], lv_color_hex(0x38BDF8), 0);
@@ -40,33 +42,36 @@ static void tv_scroll_event_cb(lv_event_t *e) {
     else if (act == s_tile1) update_dots(1);
     else if (act == s_tile2) update_dots(2);
     else if (act == s_tile3) update_dots(3);
+    else if (act == s_tile4) update_dots(4);
 }
 
 void ui_init() {
-    Serial.println("[ui] Initializing UI tileview and 4 screens...");
+    Serial.println("[ui] Initializing UI tileview and 5 screens...");
 
     s_tv = lv_tileview_create(lv_scr_act());
     lv_obj_set_size(s_tv, SCREEN_W, SCREEN_H);
     lv_obj_set_style_bg_color(s_tv, lv_color_black(), 0);
     lv_obj_clear_flag(s_tv, LV_OBJ_FLAG_SCROLL_ELASTIC);
 
-    // 4 Horizontal Tiles: Main (0,0), Wind (1,0), Lightning (2,0), Info (3,0)
+    // 5 Horizontal Tiles: Main (0,0), Wind (1,0), Rain (2,0), Lightning (3,0), Info (4,0)
     s_tile0 = lv_tileview_add_tile(s_tv, 0, 0, LV_DIR_RIGHT);
     s_tile1 = lv_tileview_add_tile(s_tv, 1, 0, (lv_dir_t)(LV_DIR_LEFT | LV_DIR_RIGHT));
     s_tile2 = lv_tileview_add_tile(s_tv, 2, 0, (lv_dir_t)(LV_DIR_LEFT | LV_DIR_RIGHT));
-    s_tile3 = lv_tileview_add_tile(s_tv, 3, 0, LV_DIR_LEFT);
+    s_tile3 = lv_tileview_add_tile(s_tv, 3, 0, (lv_dir_t)(LV_DIR_LEFT | LV_DIR_RIGHT));
+    s_tile4 = lv_tileview_add_tile(s_tv, 4, 0, LV_DIR_LEFT);
 
     screen_main_create(s_tile0);
     screen_wind_create(s_tile1);
-    screen_lightning_create(s_tile2);
-    screen_info_create(s_tile3);
+    screen_rain_create(s_tile2);
+    screen_lightning_create(s_tile3);
+    screen_info_create(s_tile4);
 
     lv_obj_add_event_cb(s_tv, tv_scroll_event_cb, LV_EVENT_VALUE_CHANGED, nullptr);
 
     // Page indicator dots pinned on top layer
     lv_obj_t *top_layer = lv_layer_top();
-    const int dot_x[4] = { -30, -10, 10, 30 };
-    for (int i = 0; i < 4; ++i) {
+    const int dot_x[5] = { -40, -20, 0, 20, 40 };
+    for (int i = 0; i < 5; ++i) {
         s_dot[i] = lv_obj_create(top_layer);
         lv_obj_remove_style_all(s_dot[i]);
         lv_obj_set_size(s_dot[i], 6, 6);
@@ -76,7 +81,7 @@ void ui_init() {
     }
     update_dots(0);
 
-    Serial.println("[ui] UI initialized successfully with 4 screens");
+    Serial.println("[ui] UI initialized successfully with 5 screens");
 }
 
 void ui_update() {
@@ -86,6 +91,7 @@ void ui_update() {
     // Always update all screens so when swiped to, they are current
     screen_main_update(state);
     screen_wind_update(state);
+    screen_rain_update(state);
     screen_lightning_update(state);
     screen_info_update(state);
 }
@@ -99,7 +105,7 @@ void ui_pause_autoscroll(uint32_t ms) {
 void ui_set_screen(int idx) {
     if (!s_tv) return;
     if (idx < 0) idx = 0;
-    if (idx > 3) idx = 3;
+    if (idx > 4) idx = 4;
     lv_obj_set_tile_id(s_tv, idx, 0, LV_ANIM_OFF);
     update_dots(idx);
     ui_pause_autoscroll(10000);
@@ -108,11 +114,11 @@ void ui_set_screen(int idx) {
 void ui_next_screen() {
     if (!s_tv) return;
     if (millis() < s_pause_scroll_until) return;
-    // Don't auto-scroll while viewing the Info screen (screen 3)
-    if (s_active_page >= 3) return;
+    // Don't auto-scroll while viewing the Info screen (screen 4)
+    if (s_active_page >= 4) return;
 
-    // Cycle only between the 3 main weather screens (0: Main, 1: Wind, 2: Lightning)
-    int next_page = (s_active_page + 1) % 3;
+    // Cycle only between the 4 main weather screens (0: Main, 1: Wind, 2: Rain, 3: Lightning)
+    int next_page = (s_active_page + 1) % 4;
     ui_set_screen(next_page);
 }
 

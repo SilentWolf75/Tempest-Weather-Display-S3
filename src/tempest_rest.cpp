@@ -157,13 +157,22 @@ static void fetch_forecast() {
             // Update forecast
             tempest_update_forecast(cond, icon, high_c, low_c, feels_like);
 
+            // Update precipitation accumulators and probability
+            float rain_today = current["precip_accum_local_day"] | -1.0f;
+            float rain_yesterday = current["precip_accum_local_yesterday"] | -1.0f;
+            int rain_prob = current["precip_probability"] | -1;
+            if (rain_prob < 0 && daily.size() > 0) {
+                rain_prob = daily[0]["precip_probability"] | -1;
+            }
+            tempest_update_rain_totals(rain_today, rain_yesterday, rain_prob);
+
             // If no UDP packet has arrived yet, seed live observations from current conditions
             TempestState current_state;
             tempest_get_state(&current_state);
             if (!current_state.udp_connected) {
                 tempest_update_obs(current_temp, current_hum, current_press,
                                   current_wind_avg, current_wind_gust, 0.0f, current_wind_dir,
-                                  current_uv, current_solar, 0.0f,
+                                  current_uv, current_solar, (rain_today > 0 ? 0.0f : 0.0f), 0,
                                   -1.0f, 0, 0.0f, current_time);
             }
         } else {

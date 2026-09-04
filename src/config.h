@@ -4,7 +4,7 @@
 // Weather Station Display — Hardware & Network Configuration
 
 #define FW_NAME             "Weather Station Display"
-#define FW_VERSION          "1.0.2"
+#define FW_VERSION          "1.0.3"
 #define MDNS_HOSTNAME       "weather"          // http://weather.local/
 #define AP_NAME             "Weather-Display-Setup"
 #define DEFAULT_WIFI_SSID   ""

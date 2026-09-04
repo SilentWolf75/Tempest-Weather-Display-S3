@@ -43,17 +43,27 @@ static void handle_obs_st(JsonDocument &doc) {
     float   uv          = o[10].as<float>();
     float   solar       = o[11].as<float>();
     float   rain_min    = o[12].as<float>();
+    int     precip_type = o[13].as<int>();
     float   strike_dist = o[14].as<float>();
     int     strike_cnt  = o[15].as<int>();
     float   battery     = o[16].as<float>();
 
-    Serial.printf("[tempest_udp] obs_st: %.1f C, %.0f%% RH, %.1f mb, wind %.1f m/s\n",
-                  temp_c, humidity, pressure, wind_avg);
+    Serial.printf("[tempest_udp] obs_st: %.1f C, %.0f%% RH, %.1f mb, wind %.1f m/s, rain %.2f mm (type %d)\n",
+                  temp_c, humidity, pressure, wind_avg, rain_min, precip_type);
 
     tempest_update_obs(temp_c, humidity, pressure,
                        wind_avg, wind_gust, wind_lull, wind_dir,
-                       uv, solar, rain_min,
+                       uv, solar, rain_min, precip_type,
                        strike_dist, strike_cnt, battery, epoch);
+}
+
+static void handle_precip(JsonDocument &doc) {
+    JsonArray evt = doc["evt"];
+    if (evt.size() >= 1) {
+        int64_t epoch = evt[0].as<int64_t>();
+        Serial.printf("[tempest_udp] Rain event started! Epoch: %lld\n", (long long)epoch);
+        tempest_update_precip_event(epoch);
+    }
 }
 
 static void handle_strike(JsonDocument &doc) {
@@ -135,6 +145,8 @@ static void tempest_udp_task(void *pvParameters) {
                             handle_obs_st(doc);
                         } else if (strcmp(type, "evt_strike") == 0) {
                             handle_strike(doc);
+                        } else if (strcmp(type, "evt_precip") == 0) {
+                            handle_precip(doc);
                         }
                     }
                 }
