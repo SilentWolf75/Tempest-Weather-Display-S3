@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tempest Weather Display S3 — Web Installer</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root {
+    --bg: #070d14;
+    --card: #0e1726;
+    --border: #1e293b;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.3);
+    --amber: #f59e0b;
+    --green: #22c55e;
+    --text: #f8fafc;
+    --soft: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 16px 80px;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-height: 100vh;
+  }
+
+  /* Circular device frame preview */
+  .device-frame {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #1e293b, #090e17);
+    padding: 10px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 24px var(--accent-glow);
+    margin-bottom: 24px;
+    border: 2px solid #334155;
+  }
+  .screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #000;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .screen svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 9999px;
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 12px;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  h1 {
+    color: var(--text);
+    font-size: 32px;
+    margin: 0 0 8px;
+    letter-spacing: 0.5px;
+    font-weight: 800;
+  }
+  h1 span {
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--accent-glow);
+  }
+  .sub {
+    color: var(--soft);
+    font-size: 15px;
+    margin-bottom: 28px;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+    max-width: 520px;
+    width: 100%;
+    margin-bottom: 20px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    text-align: left;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  esp-web-install-button {
+    display: block;
+    margin: 16px 0 10px;
+    --esp-tools-button-color: #070d14;
+    --esp-tools-button-background-color: var(--accent);
+    --esp-tools-button-border-radius: 10px;
+    --esp-tools-button-padding: 12px 24px;
+    --esp-tools-button-font-size: 16px;
+    --esp-tools-button-font-weight: 700;
+  }
+  esp-web-install-button button {
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  esp-web-install-button button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
+
+  ol {
+    margin: 0;
+    padding-left: 22px;
+    color: var(--soft);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  li { margin-bottom: 8px; }
+  li b { color: var(--text); }
+  code {
+    background: #1e293b;
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .note-box {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 13px;
+    color: #fbbf24;
+    line-height: 1.5;
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .feat-item {
+    background: #141f33;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #1e293b;
+    font-size: 13px;
+  }
+  .feat-item b {
+    color: var(--accent);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .footer {
+    color: var(--soft);
+    font-size: 13px;
+    margin-top: 20px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Circular AMOLED Bezel Preview -->
+  <div class="device-frame">
+    <div class="screen">
+      <svg viewBox="0 0 466 466" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="233" cy="233" r="230" fill="#070d14"/>
+        <circle cx="233" cy="233" r="226" stroke="#1e293b" stroke-width="2" fill="none"/>
+        <!-- Animated Sun & Cloud Vector Preview -->
+        <circle cx="270" cy="180" r="46" fill="#f59e0b" opacity="0.9"/>
+        <circle cx="270" cy="180" r="54" stroke="#fbbf24" stroke-width="4" stroke-dasharray="6 8" fill="none" opacity="0.6"/>
+        <ellipse cx="210" cy="205" rx="55" ry="35" fill="#38bdf8" opacity="0.9"/>
+        <ellipse cx="250" cy="215" rx="45" ry="30" fill="#60a5fa" opacity="0.8"/>
+        <!-- Temp & Info -->
+        <text x="233" y="115" font-size="20" fill="#94a3b8" font-family="sans-serif" text-anchor="middle" font-weight="600">OUTDOOR WEATHER</text>
+        <text x="233" y="295" font-size="64" fill="#f8fafc" font-family="sans-serif" text-anchor="middle" font-weight="800">72°</text>
+        <text x="233" y="340" font-size="22" fill="#38bdf8" font-family="sans-serif" text-anchor="middle" font-weight="600">Partly Cloudy</text>
+        <text x="233" y="380" font-size="16" fill="#94a3b8" font-family="sans-serif" text-anchor="middle">Wind 8 mph · Baro 29.92</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="status-badge"><div class="status-dot"></div> Web Flasher Ready</div>
+  <h1>Tempest <span>Weather Display S3</span></h1>
+  <div class="sub">
+    High-end standalone weather console for the <b>Waveshare ESP32-S3-Touch-AMOLED-1.75</b> circular display.
+    Direct LAN UDP listening &amp; Cloud REST failover for WeatherFlow Tempest stations.
+  </div>
+
+  <!-- Installer Card -->
+  <div class="card" style="text-align:center;">
+    <div class="card-title" style="justify-content:center;">⚡ 1-Click Browser Installer</div>
+    <p style="margin:0 0 16px; font-size:14px; color:var(--soft);">
+      Flash your ESP32-S3 board directly from Google Chrome or Microsoft Edge via Web Serial — no PlatformIO or command line required!
+    </p>
+
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate">⚡ Install Firmware (v1.0.0)</button>
+      <span slot="unsupported">Use Chrome or Edge on desktop (Web Serial is required).</span>
+      <span slot="not-allowed">Web Serial requires HTTPS.</span>
+    </esp-web-install-button>
+
+    <div style="font-size:12px; color:var(--soft); margin-top:8px;">
+      Installs: <code>bootloader.bin</code> · <code>partitions.bin</code> · <code>boot_app0.bin</code> · <code>firmware.bin</code>
+    </div>
+  </div>
+
+  <!-- Instructions Card -->
+  <div class="card">
+    <div class="card-title">📖 Quick Setup Steps</div>
+    <ol>
+      <li>Connect the Waveshare ESP32-S3 AMOLED board to your computer using a <b>USB-C data cable</b>.</li>
+      <li>Click <b>Install Firmware</b> above and choose the <code>USB JTAG/serial</code> or <code>USB Serial</code> port in the browser popup.</li>
+      <li>For a first-time flash, check <b>Erase device</b> to ensure a clean partition setup.</li>
+      <li>Once the flash completes, the device will reboot and broadcast a setup Wi-Fi hotspot: <b><code>Weather-Display-Setup</code></b>.</li>
+      <li>Connect your phone or laptop to <b><code>Weather-Display-Setup</code></b> and open <b><code>http://192.168.4.1/</code></b> to select your Wi-Fi network and save your Tempest Station ID.</li>
+      <li>After connecting to your Wi-Fi, open the live web dashboard at <b><a href="http://weather.local/" target="_blank">http://weather.local/</a></b> to configure real-time brightness, auto-dim timeouts, rotation, and units!</li>
+    </ol>
+
+    <div class="note-box" style="margin-top:16px;">
+      💡 <b>Updating existing firmware?</b> Leave <i>"Erase device"</i> unchecked to preserve your existing Wi-Fi credentials and station configuration in NVS flash.
+    </div>
+  </div>
+
+  <!-- Features Grid -->
+  <div class="card">
+    <div class="card-title">✨ Key Features</div>
+    <div class="features">
+      <div class="feat-item">
+        <b>Direct UDP Broadcast</b>
+        Zero cloud latency: receives live sensor packets every 3s straight from your Tempest hub.
+      </div>
+      <div class="feat-item">
+        <b>3D Procedural Icons</b>
+        Volumetric vector clouds, specular highlights, sun corona rays, and dynamic rain ripples.
+      </div>
+      <div class="feat-item">
+        <b>Live Web Settings</b>
+        Real-time brightness, dim preview, auto-scroll, Wi-Fi network scanner, and live rotation.
+      </div>
+      <div class="feat-item">
+        <b>4-Screen AMOLED UI</b>
+        Conditions, 360° wind gauge, lightning strike radar, and network/system diagnostics.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Standalone Open-Source Project for WeatherFlow Tempest Stations<br>
+    Source repository: <a href="https://github.com/SilentWolf75/Tempest-Weather-Display-S3" target="_blank">GitHub</a> · Licensed under MIT
+  </div>
+
+</body>
+</html>
