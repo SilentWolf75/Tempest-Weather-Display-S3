@@ -100,7 +100,11 @@ void ui_set_screen(int idx) {
 
 void ui_next_screen() {
     if (!s_tv) return;
-    int next_page = (s_active_page + 1) % 4;
+    // Don't auto-scroll while viewing the Info screen (screen 3)
+    if (s_active_page >= 3) return;
+
+    // Cycle only between the 3 main weather screens (0: Main, 1: Wind, 2: Lightning)
+    int next_page = (s_active_page + 1) % 3;
     ui_set_screen(next_page);
 }
 
