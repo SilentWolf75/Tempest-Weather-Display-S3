@@ -6,8 +6,8 @@
 static TempestState s_state;
 static SemaphoreHandle_t s_mutex = nullptr;
 
-// 3-hour pressure history ring buffer (one sample every 10 min = 18 samples)
-#define PRESSURE_SAMPLES 18
+// 24-hour pressure history ring buffer (48 samples, 1 every 30 min)
+#define PRESSURE_SAMPLES 48
 static float s_pressure_hist[PRESSURE_SAMPLES];
 static int   s_pressure_count = 0;
 static int   s_pressure_idx = 0;
@@ -27,6 +27,12 @@ void tempest_state_init() {
     s_state.air_temp_c = 21.0f;
     s_state.humidity_pct = 50.0f;
     s_state.pressure_mb = 1013.25f;
+    for (int i = 0; i < 48; ++i) {
+        s_pressure_hist[i] = 1013.25f;
+        s_state.pressure_hist_24h[i] = 1013.25f;
+    }
+    s_pressure_count = 48;
+    s_state.pressure_hist_count = 48;
     strncpy(s_state.conditions_text, "Connecting...", sizeof(s_state.conditions_text));
     strncpy(s_state.icon_slug, "partly-cloudy-day", sizeof(s_state.icon_slug));
     s_state.lightning_dist_km = -1.0f; // negative means none
@@ -38,6 +44,20 @@ void tempest_get_state(TempestState *dest) {
         memcpy(dest, &s_state, sizeof(TempestState));
         xSemaphoreGive(s_mutex);
     }
+}
+
+int tempest_get_pressure_history(float *dest_buf, int max_samples) {
+    if (!dest_buf || max_samples <= 0) return 0;
+    int count = 0;
+    if (s_mutex && xSemaphoreTake(s_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        count = s_state.pressure_hist_count;
+        if (count > max_samples) count = max_samples;
+        for (int i = 0; i < count; ++i) {
+            dest_buf[i] = s_state.pressure_hist_24h[i];
+        }
+        xSemaphoreGive(s_mutex);
+    }
+    return count;
 }
 
 void tempest_update_obs(float temp_c, float humidity, float pressure,
@@ -65,16 +85,31 @@ void tempest_update_obs(float temp_c, float humidity, float pressure,
     s_state.last_packet_millis = millis();
     s_state.udp_connected = true;
 
-    // Track 3-hour pressure trend
+    // Track 24-hour pressure history (48 samples, 1 every 30 mins)
     uint32_t now_ms = millis();
-    if (s_pressure_count == 0 || (now_ms - s_last_pressure_sample_ms >= 600000UL)) {
+    if (s_state.pressure_hist_count == 0 || (now_ms - s_last_pressure_sample_ms >= 1800000UL)) {
         s_last_pressure_sample_ms = now_ms;
-        s_pressure_hist[s_pressure_idx] = pressure;
-        s_pressure_idx = (s_pressure_idx + 1) % PRESSURE_SAMPLES;
-        if (s_pressure_count < PRESSURE_SAMPLES) s_pressure_count++;
+        if (s_state.pressure_hist_count == 0) {
+            // Seed initial samples with current pressure so sparkline isn't empty
+            for (int i = 0; i < 48; ++i) s_pressure_hist[i] = pressure;
+            s_pressure_count = 48;
+            s_pressure_idx = 0;
+        } else {
+            s_pressure_hist[s_pressure_idx] = pressure;
+            s_pressure_idx = (s_pressure_idx + 1) % 48;
+            if (s_pressure_count < 48) s_pressure_count++;
+        }
 
-        int oldest_idx = (s_pressure_count < PRESSURE_SAMPLES) ? 0 : s_pressure_idx;
-        s_state.pressure_trend_mb = pressure - s_pressure_hist[oldest_idx];
+        // Copy in chronological order (oldest to newest)
+        s_state.pressure_hist_count = s_pressure_count;
+        int start = (s_pressure_count < 48) ? 0 : s_pressure_idx;
+        for (int i = 0; i < s_pressure_count; ++i) {
+            s_state.pressure_hist_24h[i] = s_pressure_hist[(start + i) % 48];
+        }
+
+        // 3-hour delta (6 samples ago)
+        int delta_idx = (s_pressure_count >= 6) ? (s_pressure_count - 6) : 0;
+        s_state.pressure_trend_mb = pressure - s_state.pressure_hist_24h[delta_idx];
     }
 
     xSemaphoreGive(s_mutex);

@@ -46,12 +46,17 @@ struct TempestState {
     float    feels_like_c;
     bool     rest_connected;
 
+    // 24-Hour Pressure History (48 samples, 1 every 30 mins)
+    float    pressure_hist_24h[48];
+    int      pressure_hist_count;
+
     // User settings
     UnitSystem units;
 };
 
 void tempest_state_init();
 void tempest_get_state(TempestState *dest);
+int  tempest_get_pressure_history(float *dest_buf, int max_samples);
 
 void tempest_update_obs(float temp_c, float humidity, float pressure,
                         float wind_avg, float wind_gust, float wind_lull, int wind_dir,

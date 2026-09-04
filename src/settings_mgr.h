@@ -29,6 +29,10 @@ struct AppSettings {
     uint16_t dim_timeout_s;     // Idle seconds before dimming (0 = never dim, default 45)
     uint16_t auto_scroll_s;     // Seconds between auto screen scroll (0 = disabled, default 10)
     uint16_t screen_rotation;   // 0, 90, 180, 270 (default 270)
+    bool     night_mode_enabled;// Automatically dim during night hours
+    uint8_t  night_start_hour;  // 0..23 (default 22 = 10 PM)
+    uint8_t  night_end_hour;    // 0..23 (default 7 = 7 AM)
+    uint8_t  brightness_night;  // 2..50 (default 8)
 };
 
 void settings_init();

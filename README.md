@@ -1,7 +1,7 @@
 # Tempest Weather Display S3
 
 [![Web Installer](https://img.shields.io/badge/Web%20Flasher-Ready-22c55e?style=for-the-badge&logo=espressif)](https://SilentWolf75.github.io/Tempest-Weather-Display-S3/)
-[![Firmware](https://img.shields.io/badge/Firmware-v1.0.0-38bdf8?style=for-the-badge)](https://github.com/SilentWolf75/Tempest-Weather-Display-S3/releases)
+[![Firmware](https://img.shields.io/badge/Firmware-v1.0.2-38bdf8?style=for-the-badge)](https://github.com/SilentWolf75/Tempest-Weather-Display-S3/releases)
 [![Hardware](https://img.shields.io/badge/Hardware-Waveshare%20ESP32--S3%201.75%22%20AMOLED-orange?style=for-the-badge)](https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm)
 
 A standalone, high-performance desk weather console for the **[WeatherFlow Tempest](https://weatherflow.com/tempest-weather-system/)** weather system, custom-crafted for the circular **Waveshare ESP32-S3-Touch-AMOLED-1.75** (466×466 round AMOLED + capacitive touch).
@@ -16,25 +16,30 @@ A standalone, high-performance desk weather console for the **[WeatherFlow Tempe
 
 | Screen 1: Current Weather | Screen 2: Wind Compass | Screen 3: Lightning Radar | Screen 4: System Info |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/img/screens/screen_main.png?raw=true&v=101" width="180" alt="Main Conditions"> | <img src="docs/img/screens/screen_wind.png?raw=true&v=101" width="180" alt="Wind Compass"> | <img src="docs/img/screens/screen_lightning.png?raw=true&v=101" width="180" alt="Lightning Radar"> | <img src="docs/img/screens/screen_info.png?raw=true&v=101" width="180" alt="System Diagnostics"> |
-| Real-time temp, 3D animated sun corona & pressure trend | 360° needle gauge, rapid wind speed & gust indicator | Distance ring radar, closest strike distance & storm alert | Live Wi-Fi RSSI, local IP, mDNS URL, station link & uptime |
+| <img src="docs/img/screens/screen_main.png?raw=true&v=102" width="180" alt="Main Conditions"> | <img src="docs/img/screens/screen_wind.png?raw=true&v=102" width="180" alt="Wind Compass"> | <img src="docs/img/screens/screen_lightning.png?raw=true&v=102" width="180" alt="Lightning Radar"> | <img src="docs/img/screens/screen_info.png?raw=true&v=102" width="180" alt="System Diagnostics"> |
+| Real-time temp, 3D animated sun corona & 24h pressure sparkline | 360° needle gauge, rapid wind speed & gust indicator | Distance ring radar, closest strike distance & storm alert | Live Wi-Fi RSSI, local IP, mDNS URL, station link & uptime |
 
 ---
 
 ## ✨ Features
 
 - **Circular AMOLED UI (LVGL 8.4)**:
-  - **Screen 1 (Main Conditions)**: High-resolution temperature, feels-like, humidity, barometric pressure with 3-hour trend arrows, and procedural animated weather graphics.
+  - **Screen 1 (Main Conditions)**: High-resolution temperature, feels-like, humidity, barometric pressure with 3-hour trend arrows, 24-hour barometric history sparkline, and procedural animated weather graphics.
   - **Screen 2 (Wind Gauge)**: 360° compass rose needle, live rapid wind speed, gust indicators, and cardinal bearing.
   - **Screen 3 (Lightning Radar)**: Distance ring radar showing closest strike distance (km/mi), strike frequency, and active alerts.
   - **Screen 4 (System Info & Diagnostics)**: Live Wi-Fi SSID, RSSI signal meter, local IP address, mDNS web URL, Tempest station status, MAC address, uptime counter, and firmware version.
+- **Wireless Over-The-Air (OTA) Updates**: Upload new `.bin` firmware builds directly over Wi-Fi through the browser dashboard at `http://weather.local/` with a live progress bar and automatic reboot.
+- **Bedside Night Mode & Scheduled Dimming**: Configurable night schedule (e.g. 10:00 PM to 7:00 AM) that drops screen brightness down to deep bedside levels (configurable 0–255) to eliminate bedroom glare.
+- **24-Hour Barometric Pressure Sparkline**: Dynamic pressure history graph rendered on the main screen tracking pressure tendencies and approaching frontal systems over a 24-hour window.
 - **3D Procedural Weather Vector Graphics**: Volumetric clouds with specular highlights, multi-layer sun corona, dynamic rain streaks with splash ripples, and internal storm strobe flashes.
 - **Live Interactive Web Dashboard (`http://weather.local/`)**:
+  - **OTA Firmware Flasher**: Upgrade firmware wirelessly with 1 click.
+  - **Bedside Night Mode Scheduler**: Set sleep/wake hours and nighttime brightness.
   - **Wi-Fi Scanner**: One-click scan of available 2.4 GHz Wi-Fi networks with signal strength indicators (`📶 Strong / Fair / Weak`) and security lock badges.
   - **Instant Live Hardware Sliders**: Adjust Day Screen Brightness with zero flash wear.
   - **Dim Idle Brightness with 5s Preview**: Evaluate nighttime dim levels in your room lighting without waiting for the timer.
   - **Live Orientation & Units**: Flip screen orientation (`90° Left`, `90° Right`, `0° Default`, `180° Inverted`) and toggle between Imperial (°F, mph, inHg) and Metric (°C, m/s, mb) instantly on the fly.
-  - **Configurable Display Dim Timeout & Screen Auto-Scroll**: Cycle across all 4 screens automatically at 5s, 10s, 15s, or 30s intervals.
+  - **Configurable Display Dim Timeout & Screen Auto-Scroll**: Cycle across all screens automatically at 5s, 10s, 15s, or 30s intervals.
 - **Out-of-the-Box SoftAP Captive Portal**: If unconfigured or moved to a new location, boots a setup hotspot (`Weather-Display-Setup`) at `http://192.168.4.1/`.
 
 ---

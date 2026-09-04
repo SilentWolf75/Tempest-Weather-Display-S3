@@ -151,7 +151,28 @@ void loop() {
         uint32_t dim_ms = (uint32_t)cur_settings.dim_timeout_s * 1000UL;
         if (idle_ms >= dim_ms && !s_is_dimmed) {
             s_is_dimmed = true;
-            display::setBrightness(cur_settings.brightness_dim);
+            uint8_t target_b = cur_settings.brightness_dim;
+
+            // Check if current time falls into night schedule
+            if (cur_settings.night_mode_enabled) {
+                time_t now_sec = time(nullptr);
+                if (now_sec > 1000000000LL) {
+                    struct tm ti;
+                    localtime_r(&now_sec, &ti);
+                    int h = ti.tm_hour;
+                    bool in_night = false;
+                    if (cur_settings.night_start_hour > cur_settings.night_end_hour) {
+                        // e.g. 22 to 7
+                        in_night = (h >= cur_settings.night_start_hour || h < cur_settings.night_end_hour);
+                    } else {
+                        in_night = (h >= cur_settings.night_start_hour && h < cur_settings.night_end_hour);
+                    }
+                    if (in_night) {
+                        target_b = cur_settings.brightness_night;
+                    }
+                }
+            }
+            display::setBrightness(target_b);
         } else if (idle_ms < dim_ms && s_is_dimmed) {
             s_is_dimmed = false;
             display::setBrightness(cur_settings.brightness_day);

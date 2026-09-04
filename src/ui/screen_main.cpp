@@ -30,6 +30,9 @@ static lv_obj_t *s_humid_val_lbl = nullptr;
 static lv_obj_t *s_humid_sub_lbl = nullptr;
 static lv_obj_t *s_baro_val_lbl = nullptr;
 static lv_obj_t *s_baro_sub_lbl = nullptr;
+static lv_obj_t *s_baro_chart = nullptr;
+static lv_chart_series_t *s_baro_ser = nullptr;
+static lv_obj_t *s_modal = nullptr;
 static lv_obj_t *s_footer_lbl = nullptr;
 
 static void format_time(char *buf, size_t len) {
@@ -140,7 +143,7 @@ lv_obj_t* screen_main_create(lv_obj_t *parent) {
     lv_label_set_text(s_humid_val_lbl, "54%");
     lv_obj_align(s_humid_val_lbl, LV_ALIGN_BOTTOM_MID, 0, -8);
 
-    // Pressure Card (right)
+    // Pressure Card (right) - clickable to inspect 24h barometric history
     lv_obj_t *baro_card = lv_obj_create(s_panel);
     lv_obj_remove_style_all(baro_card);
     lv_obj_set_size(baro_card, 150, 68);
@@ -150,18 +153,38 @@ lv_obj_t* screen_main_create(lv_obj_t *parent) {
     lv_obj_set_style_radius(baro_card, 16, 0);
     lv_obj_set_style_border_color(baro_card, COL_PANEL_BORDER, 0);
     lv_obj_set_style_border_width(baro_card, 1, 0);
+    lv_obj_add_flag(baro_card, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t *b_icon = lv_label_create(baro_card);
-    lv_obj_set_style_text_font(b_icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(b_icon, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(b_icon, COL_ACCENT_AMBER, 0);
-    lv_label_set_text(b_icon, "PRESSURE");
-    lv_obj_align(b_icon, LV_ALIGN_TOP_MID, 0, 8);
+    lv_label_set_text(b_icon, "PRESSURE (24H)");
+    lv_obj_align(b_icon, LV_ALIGN_TOP_MID, 0, 5);
+
+    // Subtle 24h Sparkline along bottom of card
+    s_baro_chart = lv_chart_create(baro_card);
+    lv_obj_set_size(s_baro_chart, 126, 18);
+    lv_obj_align(s_baro_chart, LV_ALIGN_BOTTOM_MID, 0, -4);
+    lv_chart_set_type(s_baro_chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(s_baro_chart, 48);
+    lv_chart_set_div_line_count(s_baro_chart, 0, 0);
+    lv_obj_set_style_bg_opa(s_baro_chart, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_baro_chart, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_baro_chart, 0, LV_PART_MAIN);
+    lv_obj_set_style_line_width(s_baro_chart, 2, LV_PART_ITEMS);
+    lv_obj_set_style_line_color(s_baro_chart, COL_ACCENT_AMBER, LV_PART_ITEMS);
+    lv_obj_set_style_line_opa(s_baro_chart, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_size(s_baro_chart, 0, LV_PART_INDICATOR); // Hide point dots
+    lv_obj_clear_flag(s_baro_chart, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(s_baro_chart, LV_OBJ_FLAG_SCROLLABLE);
+    s_baro_ser = lv_chart_add_series(s_baro_chart, COL_ACCENT_AMBER, LV_CHART_AXIS_PRIMARY_Y);
 
     s_baro_val_lbl = lv_label_create(baro_card);
-    lv_obj_set_style_text_font(s_baro_val_lbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(s_baro_val_lbl, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_baro_val_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_baro_val_lbl, "29.92");
-    lv_obj_align(s_baro_val_lbl, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_label_set_text(s_baro_val_lbl, "29.92 >");
+    lv_obj_align(s_baro_val_lbl, LV_ALIGN_TOP_MID, 0, 21);
+    lv_obj_clear_flag(s_baro_val_lbl, LV_OBJ_FLAG_CLICKABLE);
 
     // --- Footer info (Rain & UV, y = 370) ---
     s_footer_lbl = lv_label_create(s_panel);
@@ -230,6 +253,36 @@ void screen_main_update(const TempestState &state) {
         snprintf(baro_buf, sizeof(baro_buf), "%.0f %s", roundf(p_disp), trend_arrow);
     }
     lv_label_set_text(s_baro_val_lbl, baro_buf);
+
+    // Update 24-hour barometric sparkline series
+    if (s_baro_chart && s_baro_ser && state.pressure_hist_count > 0) {
+        uint8_t pts = (state.pressure_hist_count > 48) ? 48 : (uint8_t)state.pressure_hist_count;
+        if (pts < 2) {
+            lv_chart_set_point_count(s_baro_chart, 2);
+            float p = state.pressure_hist_24h[0];
+            lv_chart_set_range(s_baro_chart, LV_CHART_AXIS_PRIMARY_Y, (lv_coord_t)floorf(p - 2.0f), (lv_coord_t)ceilf(p + 2.0f));
+            lv_chart_set_value_by_id(s_baro_chart, s_baro_ser, 0, (lv_coord_t)roundf(p));
+            lv_chart_set_value_by_id(s_baro_chart, s_baro_ser, 1, (lv_coord_t)roundf(p));
+        } else {
+            lv_chart_set_point_count(s_baro_chart, pts);
+            float min_p = 9999.0f, max_p = -9999.0f;
+            for (int i = 0; i < pts; ++i) {
+                float v = state.pressure_hist_24h[i];
+                if (v < min_p) min_p = v;
+                if (v > max_p) max_p = v;
+            }
+            if (max_p - min_p < 4.0f) {
+                min_p -= 2.0f;
+                max_p += 2.0f;
+            }
+            lv_chart_set_range(s_baro_chart, LV_CHART_AXIS_PRIMARY_Y, (lv_coord_t)floorf(min_p), (lv_coord_t)ceilf(max_p));
+            for (int i = 0; i < pts; ++i) {
+                lv_chart_set_value_by_id(s_baro_chart, s_baro_ser, i, (lv_coord_t)roundf(state.pressure_hist_24h[i]));
+            }
+        }
+        lv_chart_refresh(s_baro_chart);
+        lv_obj_invalidate(s_baro_chart);
+    }
 
     // Footer: Alternate every 4 seconds between weather stats and Web Setup URL
     char foot_buf[64];

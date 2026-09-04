@@ -11,6 +11,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
+#include <Update.h>
 #include <time.h>
 
 static WebServer s_server(80);
@@ -356,6 +357,48 @@ static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
         </div>
       </div>
 
+      <!-- Card 5: Bedside Night Mode -->
+      <div class="card">
+        <div class="card-title">🌙 Bedside Night Standby Schedule</div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="night_mode_enabled" name="night_mode_enabled" style="width:auto; transform:scale(1.2);">
+            <b>Enable Automatic Bedside Dimming</b>
+          </label>
+          <div class="hint">Automatically drops screen intensity during sleeping hours to prevent bedroom glare.</div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label for="night_start_hour">Bedtime (Start Hour)</label>
+            <select id="night_start_hour" name="night_start_hour">
+              <option value="20">8:00 PM (20:00)</option>
+              <option value="21">9:00 PM (21:00)</option>
+              <option value="22" selected>10:00 PM (22:00)</option>
+              <option value="23">11:00 PM (23:00)</option>
+              <option value="0">Midnight (00:00)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="night_end_hour">Wakeup (End Hour)</label>
+            <select id="night_end_hour" name="night_end_hour">
+              <option value="5">5:00 AM (05:00)</option>
+              <option value="6">6:00 AM (06:00)</option>
+              <option value="7" selected>7:00 AM (07:00)</option>
+              <option value="8">8:00 AM (08:00)</option>
+              <option value="9">9:00 AM (09:00)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nighttime Brightness (<span id="b_night_val">8</span>)</label>
+          <div class="range-wrap">
+            <input type="range" id="brightness_night" name="brightness_night" min="2" max="30" value="8"
+                   oninput="document.getElementById('b_night_val').innerText = this.value">
+          </div>
+          <div class="hint">Minimal OLED power level (2–30). Ultra-dim to protect your sleep.</div>
+        </div>
+      </div>
+
       <!-- Buttons -->
       <div class="btn-row">
         <button type="submit" class="btn-primary">💾 Save Settings</button>
@@ -363,6 +406,27 @@ static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
         <button type="button" class="btn-warn" onclick="restartDevice()">⚠️ Reboot</button>
       </div>
     </form>
+
+    <!-- OTA Firmware Update Card -->
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-title">🚀 Wireless Firmware Update (OTA)</div>
+      <p style="font-size:13px; color:var(--dim); margin-bottom:12px;">
+        Upload a compiled <code>firmware.bin</code> directly over Wi-Fi without needing a USB cable:
+      </p>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="file" id="ota_file" accept=".bin" style="flex:1; font-size:13px; background:#0b0f19; padding:8px; border-radius:6px; border:1px solid var(--border);">
+        <button type="button" id="btn_ota_upload" class="btn-primary" style="padding:8px 16px; white-space:nowrap;" onclick="performOTA()">⚡ Upload</button>
+      </div>
+      <div id="ota_progress_wrap" style="display:none; margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--dim);">
+          <span id="ota_status_txt">Uploading firmware...</span>
+          <span id="ota_pct">0%</span>
+        </div>
+        <div style="width:100%; height:8px; background:#0b0f19; border-radius:4px; overflow:hidden;">
+          <div id="ota_bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.1s ease;"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Diagnostics -->
     <div class="card" style="margin-top: 20px;">
@@ -557,6 +621,11 @@ static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
           document.getElementById('b_dim_val').innerText = data.settings.brightness_dim;
           document.getElementById('dim_timeout_s').value = (data.settings.dim_timeout_s !== undefined) ? data.settings.dim_timeout_s : 45;
           document.getElementById('auto_scroll_s').value = (data.settings.auto_scroll_s !== undefined) ? data.settings.auto_scroll_s : 10;
+          document.getElementById('night_mode_enabled').checked = (data.settings.night_mode_enabled !== undefined) ? data.settings.night_mode_enabled : true;
+          document.getElementById('night_start_hour').value = (data.settings.night_start_hour !== undefined) ? data.settings.night_start_hour : 22;
+          document.getElementById('night_end_hour').value = (data.settings.night_end_hour !== undefined) ? data.settings.night_end_hour : 7;
+          document.getElementById('brightness_night').value = (data.settings.brightness_night !== undefined) ? data.settings.brightness_night : 8;
+          document.getElementById('b_night_val').innerText = document.getElementById('brightness_night').value;
 
           toggleCustomTz();
           updateRadioStyles();
@@ -590,7 +659,11 @@ static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
         brightness_day: parseInt(document.getElementById('brightness_day').value),
         brightness_dim: parseInt(document.getElementById('brightness_dim').value),
         dim_timeout_s: parseInt(document.getElementById('dim_timeout_s').value),
-        auto_scroll_s: parseInt(document.getElementById('auto_scroll_s').value)
+        auto_scroll_s: parseInt(document.getElementById('auto_scroll_s').value),
+        night_mode_enabled: document.getElementById('night_mode_enabled').checked,
+        night_start_hour: parseInt(document.getElementById('night_start_hour').value),
+        night_end_hour: parseInt(document.getElementById('night_end_hour').value),
+        brightness_night: parseInt(document.getElementById('brightness_night').value)
       };
 
       try {
@@ -630,6 +703,61 @@ static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
       } catch (e) {
         showBanner("Reboot triggered.", true);
       }
+    }
+
+    async function performOTA() {
+      let fileInput = document.getElementById('ota_file');
+      if (!fileInput.files.length) {
+        showBanner("Please select a firmware.bin file to upload", false);
+        return;
+      }
+      let file = fileInput.files[0];
+      if (!confirm("Flash '" + file.name + "' (" + Math.round(file.size/1024) + " KB) over the air?")) return;
+
+      let btn = document.getElementById('btn_ota_upload');
+      let pWrap = document.getElementById('ota_progress_wrap');
+      let pBar = document.getElementById('ota_bar');
+      let pPct = document.getElementById('ota_pct');
+      let pTxt = document.getElementById('ota_status_txt');
+
+      btn.disabled = true;
+      fileInput.disabled = true;
+      pWrap.style.display = 'block';
+
+      let xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/ota_update', true);
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          let pct = Math.round((e.loaded / e.total) * 100);
+          pBar.style.width = pct + '%';
+          pPct.innerText = pct + '%';
+        }
+      };
+
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          pBar.style.width = '100%';
+          pPct.innerText = '100%';
+          pTxt.innerText = 'Flash complete! Rebooting into new firmware...';
+          showBanner("OTA Update Successful! Device is rebooting...", true);
+          setTimeout(() => { location.reload(); }, 12000);
+        } else {
+          showBanner("OTA Failed: " + xhr.responseText, false);
+          btn.disabled = false;
+          fileInput.disabled = false;
+        }
+      };
+
+      xhr.onerror = function() {
+        showBanner("Network error during OTA upload", false);
+        btn.disabled = false;
+        fileInput.disabled = false;
+      };
+
+      let formData = new FormData();
+      formData.append('firmware', file, file.name);
+      xhr.send(formData);
     }
 
     loadTelemetry();
@@ -673,6 +801,10 @@ static void handle_api_status() {
     settings["brightness_dim"] = s.brightness_dim;
     settings["dim_timeout_s"] = s.dim_timeout_s;
     settings["auto_scroll_s"] = s.auto_scroll_s;
+    settings["night_mode_enabled"] = s.night_mode_enabled;
+    settings["night_start_hour"] = s.night_start_hour;
+    settings["night_end_hour"] = s.night_end_hour;
+    settings["brightness_night"] = s.brightness_night;
 
     JsonObject telemetry = doc["telemetry"].to<JsonObject>();
     telemetry["ip"] = WiFi.localIP().toString();
@@ -760,6 +892,10 @@ static void handle_api_settings() {
     if (doc["brightness_dim"].is<uint8_t>()) s.brightness_dim = doc["brightness_dim"].as<uint8_t>();
     if (doc["dim_timeout_s"].is<uint16_t>()) s.dim_timeout_s = doc["dim_timeout_s"].as<uint16_t>();
     if (doc["auto_scroll_s"].is<uint16_t>()) s.auto_scroll_s = doc["auto_scroll_s"].as<uint16_t>();
+    if (doc["night_mode_enabled"].is<bool>()) s.night_mode_enabled = doc["night_mode_enabled"].as<bool>();
+    if (doc["night_start_hour"].is<uint8_t>()) s.night_start_hour = doc["night_start_hour"].as<uint8_t>();
+    if (doc["night_end_hour"].is<uint8_t>()) s.night_end_hour = doc["night_end_hour"].as<uint8_t>();
+    if (doc["brightness_night"].is<uint8_t>()) s.brightness_night = doc["brightness_night"].as<uint8_t>();
 
     // Save to NVS
     settings_save(&s);
@@ -947,6 +1083,43 @@ static void handle_api_restart() {
     ESP.restart();
 }
 
+static void handle_ota_finish() {
+    bool ok = !Update.hasError();
+    if (ok) {
+        s_server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Update success. Rebooting...\"}");
+    } else {
+        char err_msg[64];
+        snprintf(err_msg, sizeof(err_msg), "Update failed (Error #%u)", Update.getError());
+        s_server.send(500, "application/json", String("{\"status\":\"error\",\"message\":\"") + err_msg + "\"}");
+    }
+    delay(500);
+    if (ok) ESP.restart();
+}
+
+static void handle_ota_upload() {
+    HTTPUpload& upload = s_server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+        Serial.printf("[ota] Receiving update file: '%s'\n", upload.filename.c_str());
+        // Command update to write to next OTA partition
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+            Update.printError(Serial);
+        }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+            Update.printError(Serial);
+        }
+    } else if (upload.status == UPLOAD_FILE_END) {
+        if (Update.end(true)) {
+            Serial.printf("[ota] Update successfully flashed: %u bytes written!\n", upload.totalSize);
+        } else {
+            Update.printError(Serial);
+        }
+    } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        Update.end();
+        Serial.println("[ota] Update aborted by client");
+    }
+}
+
 void web_config_server_begin() {
     if (s_server_started) return;
 
@@ -966,6 +1139,7 @@ void web_config_server_begin() {
     s_server.on("/api/wifi_scan", HTTP_GET, handle_api_wifi_scan);
     s_server.on("/api/forecast_refresh", HTTP_POST, handle_api_forecast_refresh);
     s_server.on("/api/restart", HTTP_POST, handle_api_restart);
+    s_server.on("/api/ota_update", HTTP_POST, handle_ota_finish, handle_ota_upload);
     s_server.on("/shot.bmp", HTTP_GET, handle_shot_bmp);
     s_server.on("/view", HTTP_GET, handle_view);
 

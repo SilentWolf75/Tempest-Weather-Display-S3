@@ -92,6 +92,10 @@ void settings_init() {
     s_settings.dim_timeout_s = s_prefs.getUShort("dim_s", 45); // default 45 seconds
     s_settings.auto_scroll_s = s_prefs.getUShort("scroll_s", 10); // default 10s auto-scroll
     s_settings.screen_rotation = s_prefs.getUShort("rot", DEFAULT_ROTATION);
+    s_settings.night_mode_enabled = s_prefs.getBool("nm_en", true);
+    s_settings.night_start_hour = s_prefs.getUChar("nm_start", 22); // 10 PM
+    s_settings.night_end_hour = s_prefs.getUChar("nm_end", 7);      // 7 AM
+    s_settings.brightness_night = s_prefs.getUChar("b_night", 8);   // Very dim OLED night level
 
     s_initialized = true;
 
@@ -135,6 +139,10 @@ void settings_save(const AppSettings *in) {
     s_prefs.putUShort("dim_s", s_settings.dim_timeout_s);
     s_prefs.putUShort("scroll_s", s_settings.auto_scroll_s);
     s_prefs.putUShort("rot", s_settings.screen_rotation);
+    s_prefs.putBool("nm_en", s_settings.night_mode_enabled);
+    s_prefs.putUChar("nm_start", s_settings.night_start_hour);
+    s_prefs.putUChar("nm_end", s_settings.night_end_hour);
+    s_prefs.putUChar("b_night", s_settings.brightness_night);
 
     if (tz_changed) {
         settings_apply_timezone();
