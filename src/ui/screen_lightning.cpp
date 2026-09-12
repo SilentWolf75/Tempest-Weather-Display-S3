@@ -212,6 +212,43 @@ lv_obj_t* screen_lightning_create(lv_obj_t *parent) {
     lv_label_set_text(s_lbl_r4, "40 mi");
     lv_obj_align(s_lbl_r4, LV_ALIGN_CENTER, UI_S(142), UI_S(-142));
 
+    // --- Cardinal Direction Indicators (N, S, E, W) ---
+    lv_obj_t *n_lbl = lv_label_create(s_panel);
+    lv_obj_set_style_text_font(n_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_20 : &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(n_lbl, COL_SWEEP, 0);
+    lv_obj_set_style_bg_color(n_lbl, COL_BG, 0);
+    lv_obj_set_style_bg_opa(n_lbl, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(n_lbl, UI_S(2), 0);
+    lv_label_set_text(n_lbl, "N");
+    lv_obj_align(n_lbl, LV_ALIGN_CENTER, 0, UI_S(-178));
+
+    lv_obj_t *s_lbl = lv_label_create(s_panel);
+    lv_obj_set_style_text_font(s_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_20 : &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(s_lbl, COL_TEXT_SOFT, 0);
+    lv_obj_set_style_bg_color(s_lbl, COL_BG, 0);
+    lv_obj_set_style_bg_opa(s_lbl, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(s_lbl, UI_S(2), 0);
+    lv_label_set_text(s_lbl, "S");
+    lv_obj_align(s_lbl, LV_ALIGN_CENTER, 0, UI_S(178));
+
+    lv_obj_t *e_lbl = lv_label_create(s_panel);
+    lv_obj_set_style_text_font(e_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_20 : &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(e_lbl, COL_TEXT_SOFT, 0);
+    lv_obj_set_style_bg_color(e_lbl, COL_BG, 0);
+    lv_obj_set_style_bg_opa(e_lbl, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(e_lbl, UI_S(2), 0);
+    lv_label_set_text(e_lbl, "E");
+    lv_obj_align(e_lbl, LV_ALIGN_CENTER, UI_S(178), 0);
+
+    lv_obj_t *w_lbl = lv_label_create(s_panel);
+    lv_obj_set_style_text_font(w_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_20 : &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(w_lbl, COL_TEXT_SOFT, 0);
+    lv_obj_set_style_bg_color(w_lbl, COL_BG, 0);
+    lv_obj_set_style_bg_opa(w_lbl, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(w_lbl, UI_S(2), 0);
+    lv_label_set_text(w_lbl, "W");
+    lv_obj_align(w_lbl, LV_ALIGN_CENTER, UI_S(-178), 0);
+
     // --- Twin Telemetry Cards ---
     // Left Card: 3-Hour Activity & Closest Distance
     lv_obj_t *card_3h = lv_obj_create(s_panel);
