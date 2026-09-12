@@ -56,6 +56,19 @@ struct TempestState {
     float    pressure_hist_24h[48];
     int      pressure_hist_count;
 
+    // Computed & peak metrics
+    float    dew_point_c;
+    float    peak_gust_ms;
+    int      peak_gust_dir;
+    int64_t  peak_gust_epoch;
+
+    // Recent strike distance history (up to 4 past strikes)
+    struct StrikeMarker {
+        float   dist_km;
+        int64_t epoch;
+    } recent_strikes[4];
+    int      recent_strike_count;
+
     // User settings
     UnitSystem units;
 };

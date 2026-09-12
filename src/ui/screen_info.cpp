@@ -39,7 +39,7 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     // Decorative circular accent ring (matches Screen 1/2/3 aesthetic)
     lv_obj_t *ring = lv_obj_create(s_panel);
     lv_obj_remove_style_all(ring);
-    lv_obj_set_size(ring, 456, 456);
+    lv_obj_set_size(ring, UI_S(456), UI_S(456));
     lv_obj_center(ring);
     lv_obj_set_style_border_color(ring, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(ring, 1, 0);
@@ -47,41 +47,41 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
     lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
-    // Status Pill Container (y = 42)
+    // Status Pill Container
     lv_obj_t *status_cont = lv_obj_create(s_panel);
     lv_obj_remove_style_all(status_cont);
-    lv_obj_set_size(status_cont, 260, 20);
-    lv_obj_align(status_cont, LV_ALIGN_TOP_MID, 0, 44);
+    lv_obj_set_size(status_cont, UI_S(260), UI_S(20));
+    lv_obj_align(status_cont, LV_ALIGN_TOP_MID, 0, UI_S(44));
     lv_obj_clear_flag(status_cont, LV_OBJ_FLAG_SCROLLABLE);
 
     // Glowing Dot
     s_status_dot = lv_obj_create(status_cont);
     lv_obj_remove_style_all(s_status_dot);
-    lv_obj_set_size(s_status_dot, 8, 8);
+    lv_obj_set_size(s_status_dot, UI_S(8), UI_S(8));
     lv_obj_set_style_radius(s_status_dot, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(s_status_dot, COL_ONLINE_GREEN, 0);
     lv_obj_set_style_bg_opa(s_status_dot, LV_OPA_COVER, 0);
-    lv_obj_align(s_status_dot, LV_ALIGN_LEFT_MID, 22, 0);
+    lv_obj_align(s_status_dot, LV_ALIGN_LEFT_MID, UI_S(22), 0);
 
     // Status Text
     s_status_badge = lv_label_create(status_cont);
     lv_label_set_text(s_status_badge, "ONLINE (Wi-Fi Connected)");
     lv_obj_set_style_text_color(s_status_badge, COL_ONLINE_GREEN, 0);
     lv_obj_set_style_text_font(s_status_badge, &lv_font_montserrat_12, 0);
-    lv_obj_align(s_status_badge, LV_ALIGN_LEFT_MID, 36, 0);
+    lv_obj_align(s_status_badge, LV_ALIGN_LEFT_MID, UI_S(36), 0);
 
-    // 2. Network Card (y = 74..198, width 340, height 124)
+    // 2. Network Card (width 340, height 124)
     lv_obj_t *card_net = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_net);
-    lv_obj_set_size(card_net, 340, 124);
-    lv_obj_align(card_net, LV_ALIGN_TOP_MID, 0, 74);
+    lv_obj_set_size(card_net, UI_S(340), UI_S(124));
+    lv_obj_align(card_net, LV_ALIGN_TOP_MID, 0, UI_S(74));
     lv_obj_set_style_bg_color(card_net, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_net, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(card_net, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(card_net, 1, 0);
-    lv_obj_set_style_radius(card_net, 16, 0);
-    lv_obj_set_style_pad_hor(card_net, 16, 0);
-    lv_obj_set_style_pad_ver(card_net, 10, 0);
+    lv_obj_set_style_radius(card_net, UI_S(16), 0);
+    lv_obj_set_style_pad_hor(card_net, UI_S(16), 0);
+    lv_obj_set_style_pad_ver(card_net, UI_S(10), 0);
     lv_obj_clear_flag(card_net, LV_OBJ_FLAG_SCROLLABLE);
 
     // Network Card Title
@@ -96,41 +96,41 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_label_set_text(s_wifi_ssid_lbl, "Wi-Fi: --");
     lv_obj_set_style_text_color(s_wifi_ssid_lbl, COL_TEXT_MAIN, 0);
     lv_obj_set_style_text_font(s_wifi_ssid_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_align(s_wifi_ssid_lbl, LV_ALIGN_TOP_LEFT, 0, 18);
+    lv_obj_align(s_wifi_ssid_lbl, LV_ALIGN_TOP_LEFT, 0, UI_S(18));
 
     // IP Address
     s_wifi_ip_lbl = lv_label_create(card_net);
     lv_label_set_text(s_wifi_ip_lbl, "IP: 0.0.0.0");
     lv_obj_set_style_text_color(s_wifi_ip_lbl, COL_ACCENT_CYAN, 0);
     lv_obj_set_style_text_font(s_wifi_ip_lbl, &lv_font_montserrat_14, 0);
-    lv_obj_align(s_wifi_ip_lbl, LV_ALIGN_TOP_LEFT, 0, 38);
+    lv_obj_align(s_wifi_ip_lbl, LV_ALIGN_TOP_LEFT, 0, UI_S(38));
 
     // Web Config URL
     s_mdns_lbl = lv_label_create(card_net);
     lv_label_set_text(s_mdns_lbl, "Web: http://weather.local/");
     lv_obj_set_style_text_color(s_mdns_lbl, COL_ACCENT_AMBER, 0);
     lv_obj_set_style_text_font(s_mdns_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_align(s_mdns_lbl, LV_ALIGN_TOP_LEFT, 0, 64);
+    lv_obj_align(s_mdns_lbl, LV_ALIGN_TOP_LEFT, 0, UI_S(64));
 
     // MAC Address
     s_mac_lbl = lv_label_create(card_net);
     lv_label_set_text(s_mac_lbl, "MAC: --:--:--:--:--:--");
     lv_obj_set_style_text_color(s_mac_lbl, COL_TEXT_SOFT, 0);
     lv_obj_set_style_text_font(s_mac_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_align(s_mac_lbl, LV_ALIGN_TOP_LEFT, 0, 84);
+    lv_obj_align(s_mac_lbl, LV_ALIGN_TOP_LEFT, 0, UI_S(84));
 
-    // 3. Tempest Station Card (y = 206..296, width 340, height 90)
+    // 3. Tempest Station Card (width 340, height 90)
     lv_obj_t *card_st = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_st);
-    lv_obj_set_size(card_st, 340, 90);
-    lv_obj_align(card_st, LV_ALIGN_TOP_MID, 0, 206);
+    lv_obj_set_size(card_st, UI_S(340), UI_S(90));
+    lv_obj_align(card_st, LV_ALIGN_TOP_MID, 0, UI_S(206));
     lv_obj_set_style_bg_color(card_st, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_st, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(card_st, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(card_st, 1, 0);
-    lv_obj_set_style_radius(card_st, 16, 0);
-    lv_obj_set_style_pad_hor(card_st, 16, 0);
-    lv_obj_set_style_pad_ver(card_st, 10, 0);
+    lv_obj_set_style_radius(card_st, UI_S(16), 0);
+    lv_obj_set_style_pad_hor(card_st, UI_S(16), 0);
+    lv_obj_set_style_pad_ver(card_st, UI_S(10), 0);
     lv_obj_clear_flag(card_st, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *st_hdr = lv_label_create(card_st);
@@ -143,39 +143,39 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_label_set_text(s_station_lbl, "Station: Not Configured");
     lv_obj_set_style_text_color(s_station_lbl, COL_TEXT_MAIN, 0);
     lv_obj_set_style_text_font(s_station_lbl, &lv_font_montserrat_14, 0);
-    lv_obj_align(s_station_lbl, LV_ALIGN_TOP_LEFT, 0, 20);
+    lv_obj_align(s_station_lbl, LV_ALIGN_TOP_LEFT, 0, UI_S(20));
 
     s_feed_lbl = lv_label_create(card_st);
     lv_label_set_text(s_feed_lbl, "Feed: Waiting for packets...");
     lv_obj_set_style_text_color(s_feed_lbl, COL_ACCENT_CYAN, 0);
     lv_obj_set_style_text_font(s_feed_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_align(s_feed_lbl, LV_ALIGN_TOP_LEFT, 0, 46);
+    lv_obj_align(s_feed_lbl, LV_ALIGN_TOP_LEFT, 0, UI_S(46));
 
-    // 4. Lower Hardware & System Card (y = 304..374, width 280, height 70)
+    // 4. Lower Hardware & System Card (width 280, height 70)
     lv_obj_t *card_sys = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_sys);
-    lv_obj_set_size(card_sys, 280, 70);
-    lv_obj_align(card_sys, LV_ALIGN_TOP_MID, 0, 304);
+    lv_obj_set_size(card_sys, UI_S(280), UI_S(70));
+    lv_obj_align(card_sys, LV_ALIGN_TOP_MID, 0, UI_S(304));
     lv_obj_set_style_bg_color(card_sys, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_sys, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(card_sys, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(card_sys, 1, 0);
-    lv_obj_set_style_radius(card_sys, 14, 0);
-    lv_obj_set_style_pad_hor(card_sys, 12, 0);
-    lv_obj_set_style_pad_ver(card_sys, 8, 0);
+    lv_obj_set_style_radius(card_sys, UI_S(14), 0);
+    lv_obj_set_style_pad_hor(card_sys, UI_S(12), 0);
+    lv_obj_set_style_pad_ver(card_sys, UI_S(8), 0);
     lv_obj_clear_flag(card_sys, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *fw_lbl = lv_label_create(card_sys);
-    lv_label_set_text(fw_lbl, "Firmware: v" FW_VERSION " (ESP32-S3)");
+    lv_label_set_text(fw_lbl, "Firmware: v" FW_VERSION " (" BOARD_CHIP_NAME ")");
     lv_obj_set_style_text_color(fw_lbl, COL_TEXT_MAIN, 0);
     lv_obj_set_style_text_font(fw_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_align(fw_lbl, LV_ALIGN_TOP_MID, 0, 4);
+    lv_obj_align(fw_lbl, LV_ALIGN_TOP_MID, 0, UI_S(4));
 
     s_uptime_lbl = lv_label_create(card_sys);
     lv_label_set_text(s_uptime_lbl, "Uptime: 00h 00m 00s");
     lv_obj_set_style_text_color(s_uptime_lbl, COL_TEXT_SOFT, 0);
     lv_obj_set_style_text_font(s_uptime_lbl, &lv_font_montserrat_12, 0);
-    lv_obj_align(s_uptime_lbl, LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_align(s_uptime_lbl, LV_ALIGN_TOP_MID, 0, UI_S(28));
 
     return s_panel;
 }

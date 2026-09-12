@@ -26,11 +26,11 @@ static void update_dots(int active) {
         if (i == active) {
             lv_obj_set_style_bg_color(s_dot[i], lv_color_hex(0x38BDF8), 0);
             lv_obj_set_style_bg_opa(s_dot[i], LV_OPA_COVER, 0);
-            lv_obj_set_size(s_dot[i], 18, 6);
+            lv_obj_set_size(s_dot[i], UI_S(18), UI_S(6));
         } else {
             lv_obj_set_style_bg_color(s_dot[i], lv_color_hex(0x64748B), 0);
             lv_obj_set_style_bg_opa(s_dot[i], LV_OPA_60, 0);
-            lv_obj_set_size(s_dot[i], 6, 6);
+            lv_obj_set_size(s_dot[i], UI_S(6), UI_S(6));
         }
     }
 }
@@ -70,13 +70,13 @@ void ui_init() {
 
     // Page indicator dots pinned on top layer
     lv_obj_t *top_layer = lv_layer_top();
-    const int dot_x[5] = { -40, -20, 0, 20, 40 };
+    const int dot_x[5] = { UI_S(-40), UI_S(-20), 0, UI_S(20), UI_S(40) };
     for (int i = 0; i < 5; ++i) {
         s_dot[i] = lv_obj_create(top_layer);
         lv_obj_remove_style_all(s_dot[i]);
-        lv_obj_set_size(s_dot[i], 6, 6);
+        lv_obj_set_size(s_dot[i], UI_S(6), UI_S(6));
         lv_obj_set_style_radius(s_dot[i], LV_RADIUS_CIRCLE, 0);
-        lv_obj_align(s_dot[i], LV_ALIGN_BOTTOM_MID, dot_x[i], -18);
+        lv_obj_align(s_dot[i], LV_ALIGN_BOTTOM_MID, dot_x[i], UI_S(-18));
         lv_obj_clear_flag(s_dot[i], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     }
     update_dots(0);

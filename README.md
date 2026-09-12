@@ -1,10 +1,10 @@
-# Tempest Weather Display S3
+# Tempest Weather Display S3 & P4
 
 [![Web Installer](https://img.shields.io/badge/Web%20Flasher-Ready-22c55e?style=for-the-badge&logo=espressif)](https://SilentWolf75.github.io/Tempest-Weather-Display-S3/)
-[![Firmware](https://img.shields.io/badge/Firmware-v1.0.3-38bdf8?style=for-the-badge)](https://github.com/SilentWolf75/Tempest-Weather-Display-S3/releases)
-[![Hardware](https://img.shields.io/badge/Hardware-Waveshare%20ESP32--S3%201.75%22%20AMOLED-orange?style=for-the-badge)](https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm)
+[![Firmware](https://img.shields.io/badge/Firmware-v1.0.4-38bdf8?style=for-the-badge)](https://github.com/SilentWolf75/Tempest-Weather-Display-S3/releases)
+[![Hardware](https://img.shields.io/badge/Hardware-ESP32--S3%20AMOLED%20&%20ESP32--P4%20DSI-orange?style=for-the-badge)](https://www.waveshare.com/esp32-s3-touch-amoled-1.75.htm)
 
-A standalone, high-performance desk weather console for the **[WeatherFlow Tempest](https://weatherflow.com/tempest-weather-system/)** weather system, custom-crafted for the circular **Waveshare ESP32-S3-Touch-AMOLED-1.75** (466×466 round AMOLED + capacitive touch).
+A standalone, high-performance desk weather console for the **[WeatherFlow Tempest](https://weatherflow.com/tempest-weather-system/)** weather system, supporting both the circular **Waveshare ESP32-S3-Touch-AMOLED-1.75** (466×466 round AMOLED) and the **Waveshare ESP32-P4-WIFI6-Touch-LCD-4C** (720×720 4" round IPS MIPI-DSI).
 
 ⚡ **Zero-Cloud LAN Ingest**: Listens directly to live Tempest UDP broadcast packets on port `50222` for real-time (3-second) rapid wind, barometric pressure, rain rate, and lightning strikes. Automatically falls back to WeatherFlow REST API when outside LAN broadcast range.
 

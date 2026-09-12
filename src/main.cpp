@@ -1,7 +1,9 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiManager.h>
 #include "config.h"
+#if BOARD_HAS_WIFIMANAGER
+#include <WiFiManager.h>
+#endif
 #include "settings_mgr.h"
 #include "web_config_server.h"
 #include "display.h"
@@ -12,27 +14,69 @@
 
 static uint32_t s_last_ui_update_ms = 0;
 static bool     s_is_dimmed = false;
+
+#if BOARD_HAS_WIFIMANAGER
 static WiFiManager s_wm;
+#else
+#include <DNSServer.h>
+static DNSServer s_dns_server;
+static bool     s_setup_ap_up = false;
+static uint32_t s_sta_wait_ms = 0;
+#define WIFI_PORTAL_AFTER_MS 45000UL
+
+static void wifi_portal_tick() {
+    if (WiFi.status() == WL_CONNECTED) {
+        if (s_setup_ap_up) {
+            Serial.println("[wifi] Station associated -> shutting down SoftAP portal");
+            s_dns_server.stop();
+            WiFi.softAPdisconnect(true);
+            WiFi.mode(WIFI_STA);
+            s_setup_ap_up = false;
+        }
+        s_sta_wait_ms = millis();
+        return;
+    }
+
+    if (s_setup_ap_up) {
+        s_dns_server.processNextRequest();
+        return;
+    }
+
+    if (s_sta_wait_ms == 0) { s_sta_wait_ms = millis(); return; }
+    if (millis() - s_sta_wait_ms < WIFI_PORTAL_AFTER_MS) return;
+
+    Serial.printf("[wifi] No association after %lus -> raising setup AP '%s'\n",
+                  (unsigned long)(WIFI_PORTAL_AFTER_MS / 1000), AP_NAME);
+    s_setup_ap_up = WiFi.mode(WIFI_AP_STA) && WiFi.softAP(AP_NAME);
+    if (!s_setup_ap_up) s_setup_ap_up = WiFi.mode(WIFI_AP) && WiFi.softAP(AP_NAME);
+    if (s_setup_ap_up) {
+        s_dns_server.start(53, "*", WiFi.softAPIP());
+        Serial.printf("[wifi] Setup AP active: connect to '%s', open http://%s/\n",
+                      AP_NAME, WiFi.softAPIP().toString().c_str());
+        web_config_server_begin();
+    }
+}
+#endif
 
 void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.printf("\n=========================================\n");
     Serial.printf("  %s v%s\n", FW_NAME, FW_VERSION);
-    Serial.printf("  Waveshare ESP32-S3-Touch-AMOLED-1.75\n");
+    Serial.printf("  %s\n", BOARD_NAME);
     Serial.printf("=========================================\n");
 
     // Initialize persisted NVS settings & thread-safe weather state
     settings_init();
     tempest_state_init();
 
-    // Bring up CO5300 QSPI AMOLED and CST9217 touch
+    // Bring up display and touch controller
     if (!display::begin()) {
         Serial.println("[main] FATAL: Display initialization failed!");
         while (1) { delay(1000); }
     }
 
-    // Build the 3-screen LVGL UI
+    // Build the 5-screen LVGL UI
     ui_init();
 
     // Initial UI render pass
@@ -66,12 +110,25 @@ void setup() {
         connected = (WiFi.status() == WL_CONNECTED);
     }
 
+#if BOARD_HAS_WIFIMANAGER
     if (!connected) {
         Serial.println("[main] Saved Wi-Fi not connected yet. Starting WiFiManager fallback...");
         s_wm.setConfigPortalTimeout(120);
         s_wm.setConnectTimeout(20);
         connected = s_wm.autoConnect(AP_NAME);
     }
+#else
+    if (!connected) {
+        Serial.printf("[main] Saved Wi-Fi not connected. Raising Setup SoftAP '%s'...\n", AP_NAME);
+        WiFi.mode(WIFI_AP_STA);
+        if (WiFi.softAP(AP_NAME)) {
+            s_setup_ap_up = true;
+            s_dns_server.start(53, "*", WiFi.softAPIP());
+            Serial.printf("[main] Setup Hotspot active at http://%s/\n", WiFi.softAPIP().toString().c_str());
+            web_config_server_begin();
+        }
+    }
+#endif
 
     if (connected) {
         Serial.printf("[main] Wi-Fi connected! IP: %s, RSSI: %d dBm\n",
@@ -107,6 +164,10 @@ void setup() {
 }
 
 void loop() {
+#if !BOARD_HAS_WIFIMANAGER
+    wifi_portal_tick();
+#endif
+
     // Dynamically monitor Wi-Fi status and ensure web server is running
     static bool s_was_connected = false;
     bool is_conn = (WiFi.status() == WL_CONNECTED);
@@ -162,7 +223,6 @@ void loop() {
                     int h = ti.tm_hour;
                     bool in_night = false;
                     if (cur_settings.night_start_hour > cur_settings.night_end_hour) {
-                        // e.g. 22 to 7
                         in_night = (h >= cur_settings.night_start_hour || h < cur_settings.night_end_hour);
                     } else {
                         in_night = (h >= cur_settings.night_start_hour && h < cur_settings.night_end_hour);

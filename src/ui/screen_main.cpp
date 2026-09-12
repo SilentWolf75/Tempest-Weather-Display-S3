@@ -7,7 +7,13 @@
 #include <time.h>
 #include <math.h>
 
+#if SCREEN_W >= 600
+LV_FONT_DECLARE(montserrat_96_digits);
+#define TEMP_DIGITS_FONT montserrat_96_digits
+#else
 LV_FONT_DECLARE(montserrat_64_digits);
+#define TEMP_DIGITS_FONT montserrat_64_digits
+#endif
 
 #define COL_BG          lv_color_black()
 #define COL_TEXT_MAIN   lv_color_hex(0xF8FAFC)
@@ -60,7 +66,7 @@ lv_obj_t* screen_main_create(lv_obj_t *parent) {
     // Subtle ambient decorative circle ring
     lv_obj_t *ring = lv_obj_create(s_panel);
     lv_obj_remove_style_all(ring);
-    lv_obj_set_size(ring, 456, 456);
+    lv_obj_set_size(ring, UI_S(456), UI_S(456));
     lv_obj_center(ring);
     lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_border_color(ring, COL_ACCENT_CYAN, 0);
@@ -70,101 +76,122 @@ lv_obj_t* screen_main_create(lv_obj_t *parent) {
 
     // --- Header (y = 35) ---
     s_time_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_time_lbl, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(s_time_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_time_lbl, COL_TEXT_SOFT, 0);
     lv_label_set_text(s_time_lbl, "12:00 PM");
-    lv_obj_align(s_time_lbl, LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_align(s_time_lbl, LV_ALIGN_TOP_MID, 0, UI_S(36));
 
     // UDP heartbeat pulse dot (left of time)
     s_udp_pulse = lv_obj_create(s_panel);
     lv_obj_remove_style_all(s_udp_pulse);
-    lv_obj_set_size(s_udp_pulse, 8, 8);
+    lv_obj_set_size(s_udp_pulse, UI_S(8), UI_S(8));
     lv_obj_set_style_radius(s_udp_pulse, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(s_udp_pulse, COL_PULSE_GREEN, 0);
     lv_obj_set_style_bg_opa(s_udp_pulse, LV_OPA_COVER, 0);
-    lv_obj_align(s_udp_pulse, LV_ALIGN_TOP_MID, -75, 42);
+    lv_obj_align(s_udp_pulse, LV_ALIGN_TOP_MID, UI_S(-75), UI_S(42));
 
     // --- Center Weather Section (y = 80..210) ---
-    // Animated weather icon (130x130 padded canvas, no clipping)
-    s_icon_anim = weather_anim_create(s_panel, 130, 130);
-    lv_obj_align(s_icon_anim, LV_ALIGN_TOP_LEFT, 80, 78);
+    // Animated weather icon (padded canvas, no clipping)
+    const lv_coord_t icon_sz = UI_S(130);
+    s_icon_anim = weather_anim_create(s_panel, icon_sz, icon_sz);
+    lv_obj_align(s_icon_anim, LV_ALIGN_TOP_LEFT, UI_S(80), UI_S(78));
 
     // Giant temperature numbers
     s_temp_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_temp_lbl, &montserrat_64_digits, 0);
+    lv_obj_set_style_text_font(s_temp_lbl, &TEMP_DIGITS_FONT, 0);
     lv_obj_set_style_text_color(s_temp_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_temp_lbl, "72");
-    lv_obj_align(s_temp_lbl, LV_ALIGN_TOP_LEFT, 222, 108);
+    lv_label_set_text(s_temp_lbl, "72.0");
+    lv_obj_align(s_temp_lbl, LV_ALIGN_TOP_LEFT, UI_S(195), UI_S(108));
 
     // Temperature unit (°F / °C)
     s_unit_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_unit_lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(s_unit_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_32 : &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(s_unit_lbl, COL_ACCENT_AMBER, 0);
     lv_label_set_text(s_unit_lbl, "°F");
-    lv_obj_align_to(s_unit_lbl, s_temp_lbl, LV_ALIGN_OUT_RIGHT_TOP, 4, 10);
+    lv_obj_align_to(s_unit_lbl, s_temp_lbl, LV_ALIGN_OUT_RIGHT_TOP, UI_S(4), UI_S(10));
 
     // Condition text (y = 210)
     s_cond_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_cond_lbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(s_cond_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_28 : &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(s_cond_lbl, COL_ACCENT_CYAN, 0);
     lv_obj_set_style_text_align(s_cond_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_cond_lbl, "Partly Cloudy");
-    lv_obj_align(s_cond_lbl, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_align(s_cond_lbl, LV_ALIGN_CENTER, 0, UI_S(-20));
 
     // High / Low & Feels Like (y = 240)
     s_range_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_range_lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(s_range_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(s_range_lbl, COL_TEXT_SOFT, 0);
     lv_obj_set_style_text_align(s_range_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_range_lbl, "H: --   L: --  |  Feels --");
-    lv_obj_align(s_range_lbl, LV_ALIGN_CENTER, 0, 10);
+    lv_obj_align(s_range_lbl, LV_ALIGN_CENTER, 0, UI_S(10));
 
     // --- Twin Metric Cards (y = 280..350) ---
     // Humidity Card (left)
     lv_obj_t *humid_card = lv_obj_create(s_panel);
     lv_obj_remove_style_all(humid_card);
-    lv_obj_set_size(humid_card, 150, 68);
-    lv_obj_align(humid_card, LV_ALIGN_CENTER, -82, 68);
+    lv_obj_set_size(humid_card, UI_S(150), UI_S(74));
+    lv_obj_align(humid_card, LV_ALIGN_CENTER, UI_S(-82), UI_S(68));
     lv_obj_set_style_bg_color(humid_card, COL_PANEL_BG, 0);
     lv_obj_set_style_bg_opa(humid_card, 220, 0);
-    lv_obj_set_style_radius(humid_card, 16, 0);
+    lv_obj_set_style_radius(humid_card, UI_S(16), 0);
     lv_obj_set_style_border_color(humid_card, COL_PANEL_BORDER, 0);
     lv_obj_set_style_border_width(humid_card, 1, 0);
 
     lv_obj_t *h_icon = lv_label_create(humid_card);
-    lv_obj_set_style_text_font(h_icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(h_icon, SCREEN_W >= 600 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(h_icon, COL_ACCENT_CYAN, 0);
     lv_label_set_text(h_icon, "HUMIDITY");
-    lv_obj_align(h_icon, LV_ALIGN_TOP_MID, 0, 8);
+    lv_obj_align(h_icon, LV_ALIGN_TOP_MID, 0, UI_S(5));
 
     s_humid_val_lbl = lv_label_create(humid_card);
-    lv_obj_set_style_text_font(s_humid_val_lbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(s_humid_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_28 : &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(s_humid_val_lbl, COL_TEXT_MAIN, 0);
     lv_label_set_text(s_humid_val_lbl, "54%");
-    lv_obj_align(s_humid_val_lbl, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_align(s_humid_val_lbl, LV_ALIGN_CENTER, 0, UI_S(-2));
+
+    s_humid_sub_lbl = lv_label_create(humid_card);
+    lv_obj_set_style_text_font(s_humid_sub_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(s_humid_sub_lbl, COL_TEXT_SOFT, 0);
+    lv_label_set_text(s_humid_sub_lbl, "Dew: --°");
+    lv_obj_align(s_humid_sub_lbl, LV_ALIGN_BOTTOM_MID, 0, UI_S(-5));
 
     // Pressure Card (right) - clickable to inspect 24h barometric history
     lv_obj_t *baro_card = lv_obj_create(s_panel);
     lv_obj_remove_style_all(baro_card);
-    lv_obj_set_size(baro_card, 150, 68);
-    lv_obj_align(baro_card, LV_ALIGN_CENTER, 82, 68);
+    lv_obj_set_size(baro_card, UI_S(150), UI_S(74));
+    lv_obj_align(baro_card, LV_ALIGN_CENTER, UI_S(82), UI_S(68));
     lv_obj_set_style_bg_color(baro_card, COL_PANEL_BG, 0);
     lv_obj_set_style_bg_opa(baro_card, 220, 0);
-    lv_obj_set_style_radius(baro_card, 16, 0);
+    lv_obj_set_style_radius(baro_card, UI_S(16), 0);
     lv_obj_set_style_border_color(baro_card, COL_PANEL_BORDER, 0);
     lv_obj_set_style_border_width(baro_card, 1, 0);
     lv_obj_add_flag(baro_card, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t *b_icon = lv_label_create(baro_card);
-    lv_obj_set_style_text_font(b_icon, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(b_icon, SCREEN_W >= 600 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(b_icon, COL_ACCENT_AMBER, 0);
-    lv_label_set_text(b_icon, "PRESSURE (24H)");
-    lv_obj_align(b_icon, LV_ALIGN_TOP_MID, 0, 5);
+    lv_label_set_text(b_icon, "PRESSURE");
+    lv_obj_align(b_icon, LV_ALIGN_TOP_MID, 0, UI_S(5));
+
+    s_baro_val_lbl = lv_label_create(baro_card);
+    lv_obj_set_style_text_font(s_baro_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(s_baro_val_lbl, COL_TEXT_MAIN, 0);
+    lv_label_set_text(s_baro_val_lbl, "29.92 >");
+    lv_obj_align(s_baro_val_lbl, LV_ALIGN_CENTER, 0, UI_S(-2));
+    lv_obj_clear_flag(s_baro_val_lbl, LV_OBJ_FLAG_CLICKABLE);
+
+    s_baro_sub_lbl = lv_label_create(baro_card);
+    lv_obj_set_style_text_font(s_baro_sub_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(s_baro_sub_lbl, COL_TEXT_SOFT, 0);
+    lv_label_set_text(s_baro_sub_lbl, "3h: Steady");
+    lv_obj_align(s_baro_sub_lbl, LV_ALIGN_BOTTOM_MID, 0, UI_S(-5));
+    lv_obj_clear_flag(s_baro_sub_lbl, LV_OBJ_FLAG_CLICKABLE);
 
     // Subtle 24h Sparkline along bottom of card
     s_baro_chart = lv_chart_create(baro_card);
-    lv_obj_set_size(s_baro_chart, 126, 18);
-    lv_obj_align(s_baro_chart, LV_ALIGN_BOTTOM_MID, 0, -4);
+    lv_obj_set_size(s_baro_chart, UI_S(126), UI_S(14));
+    lv_obj_align(s_baro_chart, LV_ALIGN_BOTTOM_MID, 0, UI_S(-2));
     lv_chart_set_type(s_baro_chart, LV_CHART_TYPE_LINE);
     lv_chart_set_point_count(s_baro_chart, 48);
     lv_chart_set_div_line_count(s_baro_chart, 0, 0);
@@ -173,26 +200,19 @@ lv_obj_t* screen_main_create(lv_obj_t *parent) {
     lv_obj_set_style_pad_all(s_baro_chart, 0, LV_PART_MAIN);
     lv_obj_set_style_line_width(s_baro_chart, 2, LV_PART_ITEMS);
     lv_obj_set_style_line_color(s_baro_chart, COL_ACCENT_AMBER, LV_PART_ITEMS);
-    lv_obj_set_style_line_opa(s_baro_chart, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_line_opa(s_baro_chart, LV_OPA_50, LV_PART_ITEMS);
     lv_obj_set_style_size(s_baro_chart, 0, LV_PART_INDICATOR); // Hide point dots
     lv_obj_clear_flag(s_baro_chart, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(s_baro_chart, LV_OBJ_FLAG_SCROLLABLE);
     s_baro_ser = lv_chart_add_series(s_baro_chart, COL_ACCENT_AMBER, LV_CHART_AXIS_PRIMARY_Y);
 
-    s_baro_val_lbl = lv_label_create(baro_card);
-    lv_obj_set_style_text_font(s_baro_val_lbl, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(s_baro_val_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_baro_val_lbl, "29.92 >");
-    lv_obj_align(s_baro_val_lbl, LV_ALIGN_TOP_MID, 0, 21);
-    lv_obj_clear_flag(s_baro_val_lbl, LV_OBJ_FLAG_CLICKABLE);
-
     // --- Footer info (Rain & UV, y = 370) ---
     s_footer_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_footer_lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(s_footer_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(s_footer_lbl, COL_TEXT_SOFT, 0);
     lv_obj_set_style_text_align(s_footer_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_footer_lbl, "UV: 3.4 Moderate  ·  Rain Today: 0.00 in");
-    lv_obj_align(s_footer_lbl, LV_ALIGN_CENTER, 0, 132);
+    lv_obj_align(s_footer_lbl, LV_ALIGN_CENTER, 0, UI_S(132));
 
     return s_panel;
 }
@@ -219,7 +239,7 @@ void screen_main_update(const TempestState &state) {
     // Temperature & Unit
     float t_display = temp_to_unit(state.air_temp_c, state.units);
     char temp_str[16];
-    snprintf(temp_str, sizeof(temp_str), "%.0f", roundf(t_display));
+    snprintf(temp_str, sizeof(temp_str), "%.1f", t_display);
     lv_label_set_text(s_temp_lbl, temp_str);
     lv_label_set_text(s_unit_lbl, temp_unit_str(state.units));
 
@@ -235,10 +255,17 @@ void screen_main_update(const TempestState &state) {
              roundf(h_disp), roundf(l_disp), roundf(fl_disp));
     lv_label_set_text(s_range_lbl, range_buf);
 
-    // Humidity
+    // Humidity & Dew Point
     char hum_buf[16];
     snprintf(hum_buf, sizeof(hum_buf), "%.0f%%", state.humidity_pct);
     lv_label_set_text(s_humid_val_lbl, hum_buf);
+
+    if (s_humid_sub_lbl) {
+        float dew_disp = temp_to_unit(state.dew_point_c, state.units);
+        char dew_buf[24];
+        snprintf(dew_buf, sizeof(dew_buf), "Dew: %.0f°", roundf(dew_disp));
+        lv_label_set_text(s_humid_sub_lbl, dew_buf);
+    }
 
     // Pressure & Tendency
     float p_disp = pressure_to_unit(state.pressure_mb, state.units);
@@ -253,6 +280,26 @@ void screen_main_update(const TempestState &state) {
         snprintf(baro_buf, sizeof(baro_buf), "%.0f %s", roundf(p_disp), trend_arrow);
     }
     lv_label_set_text(s_baro_val_lbl, baro_buf);
+
+    if (s_baro_sub_lbl) {
+        char tr_buf[32];
+        float tr_val = state.pressure_trend_mb;
+        if (state.units == UNIT_IMPERIAL) {
+            float tr_inhg = tr_val * 0.02953f;
+            if (fabsf(tr_val) < 0.3f) {
+                snprintf(tr_buf, sizeof(tr_buf), "3h: Steady");
+            } else {
+                snprintf(tr_buf, sizeof(tr_buf), "3h: %+.02f in", tr_inhg);
+            }
+        } else {
+            if (fabsf(tr_val) < 0.5f) {
+                snprintf(tr_buf, sizeof(tr_buf), "3h: Steady");
+            } else {
+                snprintf(tr_buf, sizeof(tr_buf), "3h: %+.1f mb", tr_val);
+            }
+        }
+        lv_label_set_text(s_baro_sub_lbl, tr_buf);
+    }
 
     // Update 24-hour barometric sparkline series
     if (s_baro_chart && s_baro_ser && state.pressure_hist_count > 0) {

@@ -23,7 +23,11 @@
    MEMORY SETTINGS
  *=========================*/
 #define LV_MEM_CUSTOM 0
+#if defined(BOARD_WAVESHARE_P4_LCD_4C)
+#define LV_MEM_SIZE (112U * 1024U)
+#else
 #define LV_MEM_SIZE (80U * 1024U)
+#endif
 #define LV_MEM_ADR 0
 #define LV_MEM_BUF_MAX_NUM 16
 #define LV_MEMCPY_MEMSET_STD 0

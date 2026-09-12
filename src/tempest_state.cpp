@@ -69,10 +69,32 @@ void tempest_update_obs(float temp_c, float humidity, float pressure,
     s_state.air_temp_c = temp_c;
     s_state.humidity_pct = humidity;
     s_state.pressure_mb = pressure;
+
+    // Calculate Dew Point using Magnus-Tetens approximation
+    if (humidity > 0.0f && humidity <= 100.0f) {
+        float a = 17.27f, b = 237.7f;
+        float alpha = ((a * temp_c) / (b + temp_c)) + logf(humidity / 100.0f);
+        s_state.dew_point_c = (b * alpha) / (a - alpha);
+    } else {
+        s_state.dew_point_c = temp_c;
+    }
+
     s_state.wind_avg_ms = wind_avg;
     s_state.wind_gust_ms = wind_gust;
     s_state.wind_lull_ms = wind_lull;
     s_state.wind_dir_deg = wind_dir;
+
+    // Track peak gust over last 30 minutes (reset if older than 1800s)
+    if (s_state.peak_gust_epoch > 0 && (epoch - s_state.peak_gust_epoch) > 1800LL) {
+        s_state.peak_gust_ms = wind_gust;
+        s_state.peak_gust_dir = wind_dir;
+        s_state.peak_gust_epoch = epoch;
+    } else if (wind_gust >= s_state.peak_gust_ms || s_state.peak_gust_epoch == 0) {
+        s_state.peak_gust_ms = wind_gust;
+        s_state.peak_gust_dir = wind_dir;
+        s_state.peak_gust_epoch = epoch;
+    }
+
     s_state.uv_index = uv;
     s_state.solar_wm2 = solar;
     s_state.rain_last_min_mm = rain_min;
@@ -133,6 +155,13 @@ void tempest_update_rapid_wind(float speed_ms, int dir_deg, int64_t epoch) {
     s_state.rapid_wind_ms = speed_ms;
     s_state.rapid_wind_dir = dir_deg;
     s_state.rapid_wind_epoch = epoch;
+
+    if (speed_ms >= s_state.peak_gust_ms) {
+        s_state.peak_gust_ms = speed_ms;
+        s_state.peak_gust_dir = dir_deg;
+        s_state.peak_gust_epoch = epoch;
+    }
+
     s_state.last_packet_millis = millis();
     s_state.udp_connected = true;
     xSemaphoreGive(s_mutex);
@@ -144,6 +173,14 @@ void tempest_update_strike(float dist_km, uint32_t energy, int64_t epoch) {
     s_state.lightning_dist_km = dist_km;
     s_state.last_strike_epoch = epoch;
     s_state.strike_alert_active = true;
+
+    // Shift recent strikes list down and insert newest at index 0
+    for (int i = 3; i > 0; --i) {
+        s_state.recent_strikes[i] = s_state.recent_strikes[i - 1];
+    }
+    s_state.recent_strikes[0].dist_km = dist_km;
+    s_state.recent_strikes[0].epoch = epoch;
+    if (s_state.recent_strike_count < 4) s_state.recent_strike_count++;
 
     // Add to 3-hour strike counter
     if (s_strike_count < STRIKE_BUF_SIZE) {

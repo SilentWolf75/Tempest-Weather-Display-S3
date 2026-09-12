@@ -4,35 +4,23 @@
 // Weather Station Display — Hardware & Network Configuration
 
 #define FW_NAME             "Weather Station Display"
-#define FW_VERSION          "1.0.3"
+#define FW_VERSION          "1.0.4"
 #define MDNS_HOSTNAME       "weather"          // http://weather.local/
 #define AP_NAME             "Weather-Display-Setup"
 #define DEFAULT_WIFI_SSID   ""
 #define DEFAULT_WIFI_PASS   ""
 
-// ---------- Screen Geometry ----------
-#define SCREEN_W            466
-#define SCREEN_H            466
-#define SCREEN_CX           233
-#define SCREEN_CY           233
-#define LCD_COL_OFFSET      6
-#define LCD_ROW_OFFSET      0
-#define LCD_QSPI_HZ         80000000
+// ---------- Board Selection ----------
+#if defined(BOARD_WAVESHARE_P4_LCD_4C)
+#  include "boards/waveshare_p4_lcd_4c.h"
+#elif defined(BOARD_WAVESHARE_S3_AMOLED_175) || 1
+#  include "boards/waveshare_s3_amoled_175.h"
+#endif
 
-// ---------- Display & Touch Pins ----------
-#define PIN_LCD_CS          12
-#define PIN_LCD_SCLK        38
-#define PIN_LCD_D0          4
-#define PIN_LCD_D1          5
-#define PIN_LCD_D2          6
-#define PIN_LCD_D3          7
-#define PIN_LCD_RST         39
-
-#define PIN_I2C_SDA         15
-#define PIN_I2C_SCL         14
-#define PIN_TP_INT          11
-#define PIN_TP_RST          40
-#define I2C_ADDR_TOUCH      0x5A    // CST9217 capacitive touch
+// ---------- UI Scaling Macro ----------
+// Scales 466x466 reference coordinates to any screen size proportionally
+#define UI_DESIGN_W         466
+#define UI_S(v)             (((int)(v) * SCREEN_W) / UI_DESIGN_W)
 
 // ---------- Tempest Weather Station Configuration ----------
 #define TEMPEST_UDP_PORT            50222
@@ -52,6 +40,7 @@ enum UnitSystem {
 #define DEFAULT_ROTATION            270   // 270° clockwise = 90° to the left
 #define TZ_STR                      "CST6CDT,M3.2.0,M11.1.0" // US Central Time (configurable)
 #define BRIGHTNESS_DEFAULT          210   // 0..255
-#define BRIGHTNESS_DIM              35
+#ifndef BRIGHTNESS_DIM
+#  define BRIGHTNESS_DIM            35
+#endif
 #define IDLE_DIM_MS                 45000 // 45 seconds to dim
-

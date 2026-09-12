@@ -341,6 +341,8 @@ static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
             <option value="120">2 Minutes</option>
             <option value="300">5 Minutes</option>
             <option value="600">10 Minutes</option>
+            <option value="1800">30 Minutes</option>
+            <option value="3600">60 Minutes (1 Hour)</option>
           </select>
         </div>
         <div class="form-group">
@@ -1142,6 +1144,20 @@ void web_config_server_begin() {
     s_server.on("/api/ota_update", HTTP_POST, handle_ota_finish, handle_ota_upload);
     s_server.on("/shot.bmp", HTTP_GET, handle_shot_bmp);
     s_server.on("/view", HTTP_GET, handle_view);
+
+    // Captive Portal Detection endpoints (iOS, Android, Windows)
+    s_server.on("/hotspot-detect.html", HTTP_GET, handle_root);      // Apple
+    s_server.on("/canonical.html", HTTP_GET, handle_root);           // Android
+    s_server.on("/generate_204", HTTP_GET, handle_root);             // Android
+    s_server.on("/gen_204", HTTP_GET, handle_root);                  // Android
+    s_server.on("/ncsi.txt", HTTP_GET, []() {                        // Windows
+        s_server.send(200, "text/plain", "Microsoft NCSI");
+    });
+    s_server.onNotFound([]() {
+        // Redirect any unknown captive check to root
+        s_server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
+        s_server.send(302, "text/plain", "");
+    });
 
     s_server.enableCORS(true);
     s_server.begin();

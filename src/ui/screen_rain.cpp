@@ -48,6 +48,13 @@ static void format_time(char *buf, size_t len) {
     snprintf(buf, len, "%d:%02d %s", h12, m, ampm);
 }
 
+#if SCREEN_W >= 600
+LV_FONT_DECLARE(montserrat_96_digits);
+#define RAIN_DIGITS_FONT montserrat_96_digits
+#else
+#define RAIN_DIGITS_FONT lv_font_montserrat_48
+#endif
+
 lv_obj_t* screen_rain_create(lv_obj_t *parent) {
     s_panel = lv_obj_create(parent);
     lv_obj_remove_style_all(s_panel);
@@ -59,144 +66,144 @@ lv_obj_t* screen_rain_create(lv_obj_t *parent) {
     // Heartbeat pulse dot (Green)
     s_udp_pulse = lv_obj_create(s_panel);
     lv_obj_remove_style_all(s_udp_pulse);
-    lv_obj_set_size(s_udp_pulse, 7, 7);
+    lv_obj_set_size(s_udp_pulse, UI_S(7), UI_S(7));
     lv_obj_set_style_radius(s_udp_pulse, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(s_udp_pulse, lv_color_hex(0x22C55E), 0);
     lv_obj_set_style_bg_opa(s_udp_pulse, LV_OPA_COVER, 0);
-    lv_obj_align(s_udp_pulse, LV_ALIGN_TOP_MID, -75, 42);
+    lv_obj_align(s_udp_pulse, LV_ALIGN_TOP_MID, UI_S(-75), UI_S(42));
 
     // Local Time
     s_time_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_time_lbl, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(s_time_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_time_lbl, COL_TEXT_MAIN, 0);
     lv_label_set_text(s_time_lbl, "12:00 PM");
-    lv_obj_align(s_time_lbl, LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_align(s_time_lbl, LV_ALIGN_TOP_MID, 0, UI_S(36));
 
     // Status Pill Badge (y = 66)
     s_badge = lv_obj_create(s_panel);
     lv_obj_remove_style_all(s_badge);
-    lv_obj_set_size(s_badge, 190, 24);
-    lv_obj_align(s_badge, LV_ALIGN_TOP_MID, 0, 66);
+    lv_obj_set_size(s_badge, UI_S(190), UI_S(24));
+    lv_obj_align(s_badge, LV_ALIGN_TOP_MID, 0, UI_S(66));
     lv_obj_set_style_bg_color(s_badge, lv_color_hex(0x0F172A), 0);
     lv_obj_set_style_bg_opa(s_badge, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(s_badge, 12, 0);
+    lv_obj_set_style_radius(s_badge, UI_S(12), 0);
     lv_obj_set_style_border_color(s_badge, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(s_badge, 1, 0);
 
     s_badge_lbl = lv_label_create(s_badge);
-    lv_obj_set_style_text_font(s_badge_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_badge_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_badge_lbl, COL_TEXT_SOFT, 0);
     lv_label_set_text(s_badge_lbl, "NO RAIN DETECTED");
     lv_obj_align(s_badge_lbl, LV_ALIGN_CENTER, 0, 0);
 
-    // Rain Rate Arc Gauge (220x220 centered at y = -32)
+    // Rain Rate Arc Gauge (centered at y = -32)
     s_rate_arc = lv_arc_create(s_panel);
     lv_obj_remove_style_all(s_rate_arc);
-    lv_obj_set_size(s_rate_arc, 220, 220);
-    lv_obj_align(s_rate_arc, LV_ALIGN_CENTER, 0, -32);
+    lv_obj_set_size(s_rate_arc, UI_S(220), UI_S(220));
+    lv_obj_align(s_rate_arc, LV_ALIGN_CENTER, 0, UI_S(-32));
     lv_arc_set_rotation(s_rate_arc, 135);
     lv_arc_set_bg_angles(s_rate_arc, 0, 270);
     lv_arc_set_angles(s_rate_arc, 0, 0);
     lv_arc_set_range(s_rate_arc, 0, 100);
-    lv_obj_set_style_arc_width(s_rate_arc, 8, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(s_rate_arc, UI_S(8), LV_PART_MAIN);
     lv_obj_set_style_arc_color(s_rate_arc, COL_CARD_BORDER, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(s_rate_arc, 8, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(s_rate_arc, UI_S(8), LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(s_rate_arc, COL_RAIN_CYAN, LV_PART_INDICATOR);
     lv_obj_clear_flag(s_rate_arc, LV_OBJ_FLAG_CLICKABLE);
 
     // Droplet Icon
     s_drop_icon = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_drop_icon, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(s_drop_icon, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_drop_icon, COL_RAIN_CYAN, 0);
     lv_label_set_text(s_drop_icon, LV_SYMBOL_TINT);
-    lv_obj_align(s_drop_icon, LV_ALIGN_CENTER, 0, -68);
+    lv_obj_align(s_drop_icon, LV_ALIGN_CENTER, 0, UI_S(-68));
 
     // Hero Accumulation Digits
     s_accum_val_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_accum_val_lbl, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(s_accum_val_lbl, &RAIN_DIGITS_FONT, 0);
     lv_obj_set_style_text_color(s_accum_val_lbl, COL_TEXT_MAIN, 0);
     lv_label_set_text(s_accum_val_lbl, "0.00");
-    lv_obj_align(s_accum_val_lbl, LV_ALIGN_CENTER, -16, -26);
+    lv_obj_align(s_accum_val_lbl, LV_ALIGN_CENTER, UI_S(-16), UI_S(-26));
 
     // Hero Unit ("in" / "mm")
     s_accum_unit_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_accum_unit_lbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(s_accum_unit_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_28 : &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(s_accum_unit_lbl, COL_RAIN_CYAN, 0);
     lv_label_set_text(s_accum_unit_lbl, "in");
-    lv_obj_align_to(s_accum_unit_lbl, s_accum_val_lbl, LV_ALIGN_OUT_RIGHT_BOTTOM, 6, -8);
+    lv_obj_align_to(s_accum_unit_lbl, s_accum_val_lbl, LV_ALIGN_OUT_RIGHT_BOTTOM, UI_S(6), UI_S(-8));
 
     // Subtitle ("TODAY'S RAINFALL")
     s_accum_sub_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_accum_sub_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_accum_sub_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_accum_sub_lbl, COL_TEXT_SOFT, 0);
     lv_label_set_text(s_accum_sub_lbl, "TODAY'S RAINFALL");
-    lv_obj_align(s_accum_sub_lbl, LV_ALIGN_CENTER, 0, 10);
+    lv_obj_align(s_accum_sub_lbl, LV_ALIGN_CENTER, 0, UI_S(10));
 
     // --- Twin Metric Cards (y = 265..330) ---
     // Left Card: Rain Rate & Category
     lv_obj_t *card_rate = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_rate);
-    lv_obj_set_size(card_rate, 148, 64);
-    lv_obj_align(card_rate, LV_ALIGN_CENTER, -82, 60);
+    lv_obj_set_size(card_rate, UI_S(148), UI_S(64));
+    lv_obj_align(card_rate, LV_ALIGN_CENTER, UI_S(-82), UI_S(60));
     lv_obj_set_style_bg_color(card_rate, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_rate, 220, 0);
-    lv_obj_set_style_radius(card_rate, 16, 0);
+    lv_obj_set_style_radius(card_rate, UI_S(16), 0);
     lv_obj_set_style_border_color(card_rate, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(card_rate, 1, 0);
 
     lv_obj_t *hdr_rate = lv_label_create(card_rate);
-    lv_obj_set_style_text_font(hdr_rate, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(hdr_rate, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(hdr_rate, COL_RAIN_CYAN, 0);
     lv_label_set_text(hdr_rate, "RAIN RATE");
-    lv_obj_align(hdr_rate, LV_ALIGN_TOP_MID, 0, 5);
+    lv_obj_align(hdr_rate, LV_ALIGN_TOP_MID, 0, UI_S(5));
 
     s_rate_val_lbl = lv_label_create(card_rate);
-    lv_obj_set_style_text_font(s_rate_val_lbl, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(s_rate_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_rate_val_lbl, COL_TEXT_MAIN, 0);
     lv_label_set_text(s_rate_val_lbl, "0.00 in/h");
-    lv_obj_align(s_rate_val_lbl, LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(s_rate_val_lbl, LV_ALIGN_TOP_MID, 0, UI_S(20));
 
     s_rate_cat_lbl = lv_label_create(card_rate);
-    lv_obj_set_style_text_font(s_rate_cat_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_rate_cat_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_rate_cat_lbl, COL_TEXT_SOFT, 0);
     lv_label_set_text(s_rate_cat_lbl, "Dry");
-    lv_obj_align(s_rate_cat_lbl, LV_ALIGN_BOTTOM_MID, 0, -5);
+    lv_obj_align(s_rate_cat_lbl, LV_ALIGN_BOTTOM_MID, 0, UI_S(-5));
 
     // Right Card: Rain Probability & Yesterday
     lv_obj_t *card_pop = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_pop);
-    lv_obj_set_size(card_pop, 148, 64);
-    lv_obj_align(card_pop, LV_ALIGN_CENTER, 82, 60);
+    lv_obj_set_size(card_pop, UI_S(148), UI_S(64));
+    lv_obj_align(card_pop, LV_ALIGN_CENTER, UI_S(82), UI_S(60));
     lv_obj_set_style_bg_color(card_pop, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_pop, 220, 0);
-    lv_obj_set_style_radius(card_pop, 16, 0);
+    lv_obj_set_style_radius(card_pop, UI_S(16), 0);
     lv_obj_set_style_border_color(card_pop, COL_CARD_BORDER, 0);
     lv_obj_set_style_border_width(card_pop, 1, 0);
 
     lv_obj_t *hdr_pop = lv_label_create(card_pop);
-    lv_obj_set_style_text_font(hdr_pop, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(hdr_pop, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(hdr_pop, COL_RAIN_CYAN, 0);
     lv_label_set_text(hdr_pop, "CHANCE & YEST");
-    lv_obj_align(hdr_pop, LV_ALIGN_TOP_MID, 0, 5);
+    lv_obj_align(hdr_pop, LV_ALIGN_TOP_MID, 0, UI_S(5));
 
     s_chance_val_lbl = lv_label_create(card_pop);
-    lv_obj_set_style_text_font(s_chance_val_lbl, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(s_chance_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_chance_val_lbl, COL_TEXT_MAIN, 0);
     lv_label_set_text(s_chance_val_lbl, "-- POP");
-    lv_obj_align(s_chance_val_lbl, LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(s_chance_val_lbl, LV_ALIGN_TOP_MID, 0, UI_S(20));
 
     s_yesterday_val_lbl = lv_label_create(card_pop);
-    lv_obj_set_style_text_font(s_yesterday_val_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_yesterday_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_yesterday_val_lbl, COL_TEXT_SOFT, 0);
     lv_label_set_text(s_yesterday_val_lbl, "Yest: 0.00 in");
-    lv_obj_align(s_yesterday_val_lbl, LV_ALIGN_BOTTOM_MID, 0, -5);
+    lv_obj_align(s_yesterday_val_lbl, LV_ALIGN_BOTTOM_MID, 0, UI_S(-5));
 
     // Footer info
     s_footer_lbl = lv_label_create(s_panel);
-    lv_obj_set_style_text_font(s_footer_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_footer_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_footer_lbl, COL_TEXT_MUTED, 0);
     lv_label_set_text(s_footer_lbl, "Conditions dry  •  Tempest haptic sensor active");
-    lv_obj_align(s_footer_lbl, LV_ALIGN_CENTER, 0, 108);
+    lv_obj_align(s_footer_lbl, LV_ALIGN_CENTER, 0, UI_S(108));
 
     return s_panel;
 }
