@@ -9,5 +9,6 @@ void display_p4_backlight(bool on);          // LEDC PWM on PIN_LCD_BL
 // brightness slider actually do something here rather than being on/off.
 void display_p4_backlight_level(uint8_t level);
 const uint16_t *display_p4_framebuffer(void);   // live DPI framebuffer, for /shot.bmp
+void display_p4_blit(int x, int y, int w, int h, const void *pixels);
 void display_p4_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *px);
 #endif

@@ -37,6 +37,5 @@
 #define TP_MIRROR_Y         true
 
 // ---------- Peripherals Present ----------
-#define BOARD_HAS_WIFIMANAGER 1
 #define BOARD_WIFI_HOSTED     0
 #define LVGL_BUF_LINES        32

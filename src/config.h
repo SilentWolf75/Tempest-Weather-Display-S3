@@ -4,7 +4,7 @@
 // Weather Station Display — Hardware & Network Configuration
 
 #define FW_NAME             "Weather Station Display"
-#define FW_VERSION          "1.0.4"
+#define FW_VERSION          "1.0.22"
 #define MDNS_HOSTNAME       "weather"          // http://weather.local/
 #define AP_NAME             "Weather-Display-Setup"
 #define DEFAULT_WIFI_SSID   ""
@@ -13,8 +13,10 @@
 // ---------- Board Selection ----------
 #if defined(BOARD_WAVESHARE_P4_LCD_4C)
 #  include "boards/waveshare_p4_lcd_4c.h"
-#elif defined(BOARD_WAVESHARE_S3_AMOLED_175) || 1
+#elif defined(BOARD_WAVESHARE_S3_AMOLED_175)
 #  include "boards/waveshare_s3_amoled_175.h"
+#else
+#  error "Select a supported weather display board"
 #endif
 
 // ---------- UI Scaling Macro ----------

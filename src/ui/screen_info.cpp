@@ -2,6 +2,10 @@
 #include "config.h"
 #include "settings_mgr.h"
 #include "tempest_state.h"
+#include "weather_diagnostics.h"
+#include "weather_reset.h"
+#include <esp_timer.h>
+#include <time.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <stdio.h>
@@ -154,7 +158,7 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     // 4. Lower Hardware & System Card (width 280, height 70)
     lv_obj_t *card_sys = lv_obj_create(s_panel);
     lv_obj_remove_style_all(card_sys);
-    lv_obj_set_size(card_sys, UI_S(280), UI_S(70));
+    lv_obj_set_size(card_sys, UI_S(280), UI_S(88));
     lv_obj_align(card_sys, LV_ALIGN_TOP_MID, 0, UI_S(304));
     lv_obj_set_style_bg_color(card_sys, COL_CARD_BG, 0);
     lv_obj_set_style_bg_opa(card_sys, LV_OPA_COVER, 0);
@@ -176,6 +180,14 @@ lv_obj_t* screen_info_create(lv_obj_t *parent) {
     lv_obj_set_style_text_color(s_uptime_lbl, COL_TEXT_SOFT, 0);
     lv_obj_set_style_text_font(s_uptime_lbl, &lv_font_montserrat_12, 0);
     lv_obj_align(s_uptime_lbl, LV_ALIGN_TOP_MID, 0, UI_S(28));
+
+    lv_obj_t *reset_lbl = lv_label_create(card_sys);
+    char reset_text[48];
+    snprintf(reset_text, sizeof(reset_text), "Restart: %s", weather_reset_label(esp_reset_reason()));
+    lv_label_set_text(reset_lbl, reset_text);
+    lv_obj_set_style_text_color(reset_lbl, COL_TEXT_SOFT, 0);
+    lv_obj_set_style_text_font(reset_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_align(reset_lbl, LV_ALIGN_TOP_MID, 0, UI_S(48));
 
     return s_panel;
 }
@@ -227,7 +239,7 @@ void screen_info_update(const TempestState &state) {
     }
 
     // MAC
-    snprintf(buf, sizeof(buf), "MAC: %s", WiFi.macAddress().c_str());
+    snprintf(buf, sizeof(buf), "Login: admin / %s", settings.admin_password);
     lv_label_set_text(s_mac_lbl, buf);
 
     // 2. Tempest Station Info
@@ -238,23 +250,15 @@ void screen_info_update(const TempestState &state) {
     }
     lv_label_set_text(s_station_lbl, buf);
 
-    if (state.last_obs_epoch > 0) {
-        time_t age = time(nullptr) - state.last_obs_epoch;
-        if (age < 90) {
-            snprintf(buf, sizeof(buf), "Feed: Live UDP Broadcast (%llds ago)", (long long)age);
-            lv_obj_set_style_text_color(s_feed_lbl, COL_ONLINE_GREEN, 0);
-        } else {
-            snprintf(buf, sizeof(buf), "Feed: Cloud REST Backup (%llds ago)", (long long)age);
-            lv_obj_set_style_text_color(s_feed_lbl, COL_ACCENT_AMBER, 0);
-        }
-    } else {
-        snprintf(buf, sizeof(buf), "Feed: Listening on UDP port %d...", TEMPEST_UDP_PORT);
-        lv_obj_set_style_text_color(s_feed_lbl, COL_TEXT_SOFT, 0);
-    }
+    char age[24];
+    weather_format_age(age, sizeof(age), state.has_observation,
+                       weather_observation_age(state, millis(), time(nullptr)));
+    snprintf(buf, sizeof(buf), "%s | %s", tempest_feed_label(state), age);
+    lv_obj_set_style_text_color(s_feed_lbl, state.udp_connected ? COL_ONLINE_GREEN : COL_ACCENT_AMBER, 0);
     lv_label_set_text(s_feed_lbl, buf);
 
     // 3. System Uptime
-    uint32_t s = millis() / 1000;
+    uint32_t s = uint32_t(esp_timer_get_time() / 1000000LL);
     uint32_t d = s / 86400;
     uint32_t h = (s % 86400) / 3600;
     uint32_t m = (s % 3600) / 60;

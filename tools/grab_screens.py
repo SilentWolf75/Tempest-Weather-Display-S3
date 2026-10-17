@@ -9,6 +9,9 @@ import sys
 import time
 import urllib.request
 import zlib
+import getpass
+
+OPENER = urllib.request.build_opener()
 
 SCREENS = [
     (0, "screen_main",      "Current Weather Conditions"),
@@ -19,7 +22,7 @@ SCREENS = [
 ]
 
 def get(url, timeout=15):
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+    with OPENER.open(url, timeout=timeout) as r:
         return r.read()
 
 def read_bmp(data):
@@ -66,7 +69,11 @@ def write_png(path, w, h, rows, round_mask=True):
     return len(png)
 
 def main():
+    global OPENER
     host = sys.argv[1] if len(sys.argv) > 1 else "192.168.0.79"
+    credentials = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    credentials.add_password(None, f"http://{host}/", "admin", getpass.getpass("Device password from Info screen: "))
+    OPENER = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(credentials))
     out_dirs = [
         os.path.join("docs", "img", "screens"),
         os.path.join("web", "img", "screens"),
@@ -87,31 +94,22 @@ def main():
         try:
             bmp_data = get(f"http://{host}/shot.bmp")
             w, h, rows = read_bmp(bmp_data)
+            # Opaque redaction is mandatory before writing a screenshot to public assets.
+            # Cover the entire network/station cards, including the generated login password.
+            boxes = [(63, 74, 403, 198), (63, 206, 403, 296)] if name == "screen_info" else []
+            if name == "screen_main": boxes.append((35, 352, 431, 390)) # may show setup key while offline
+            for x1, y1, x2, y2 in boxes:
+                x1, x2 = x1 * w // 466, x2 * w // 466
+                y1, y2 = y1 * h // 466, y2 * h // 466
+                for y in range(y1, y2):
+                    row = bytearray(rows[y])
+                    row[x1 * 3:x2 * 3] = bytes((x2 - x1) * 3)
+                    rows[y] = bytes(row)
             for d in out_dirs:
                 dest = os.path.join(d, f"{name}.png")
                 nbytes = write_png(dest, w, h, rows, round_mask=True)
             print(f"  [OK] Screen {idx}: {label:30} -> {name}.png ({w}x{h}, {nbytes/1024:.1f} KB)")
 
-            if name == "screen_info":
-                try:
-                    from PIL import Image, ImageFilter
-                    boxes = [
-                        (120, 103, 370, 123),  # Wi-Fi SSID
-                        (100, 125, 220, 145),  # IP address
-                        (120, 168, 275, 188),  # MAC address
-                        (130, 240, 235, 266),  # Station ID
-                    ]
-                    for d in out_dirs:
-                        dest = os.path.join(d, f"{name}.png")
-                        im = Image.open(dest).convert("RGBA")
-                        for box in boxes:
-                            sub = im.crop(box)
-                            sub = sub.filter(ImageFilter.GaussianBlur(radius=8))
-                            im.paste(sub, box)
-                        im.save(dest)
-                    print("  [Privacy] Applied frosted privacy blur to screen_info.png")
-                except Exception as ex:
-                    print(f"  Note: Pillow blur skipped: {ex}")
         except Exception as e:
             print(f"  Error capturing screen {idx} ({name}): {e}")
 

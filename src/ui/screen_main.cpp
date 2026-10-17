@@ -1,6 +1,13 @@
 #include "screen_main.h"
+#include "weather_diagnostics.h"
+#include "weather_environment.h"
+#include "weather_current.h"
+#include "weather_forecast.h"
+#include "weather_clock.h"
 #include "weather_anim.h"
 #include "config.h"
+#include "settings_mgr.h"
+#include "value_format.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <stdio.h>
@@ -40,6 +47,7 @@ static lv_obj_t *s_baro_chart = nullptr;
 static lv_chart_series_t *s_baro_ser = nullptr;
 static lv_obj_t *s_modal = nullptr;
 static lv_obj_t *s_footer_lbl = nullptr;
+static lv_obj_t *s_feed_lbl = nullptr;
 
 static void format_time(char *buf, size_t len) {
     time_t now = time(nullptr);
@@ -49,9 +57,9 @@ static void format_time(char *buf, size_t len) {
     }
     struct tm ti;
     localtime_r(&now, &ti);
-    int h = ti.tm_hour % 12;
-    if (h == 0) h = 12;
-    snprintf(buf, len, "%d:%02d %s", h, ti.tm_min, ti.tm_hour < 12 ? "AM" : "PM");
+    AppSettings settings;
+    settings_get(&settings);
+    weather_format_clock(buf, len, ti.tm_hour, ti.tm_min, ti.tm_sec, settings.clock_24h);
 }
 
 lv_obj_t* screen_main_create(lv_obj_t *parent) {
@@ -213,6 +221,10 @@ lv_obj_t* screen_main_create(lv_obj_t *parent) {
     lv_obj_set_style_text_align(s_footer_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(s_footer_lbl, "UV: 3.4 Moderate  ·  Rain Today: 0.00 in");
     lv_obj_align(s_footer_lbl, LV_ALIGN_CENTER, 0, UI_S(132));
+    s_feed_lbl = lv_label_create(s_panel);
+    lv_obj_set_style_text_font(s_feed_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(s_feed_lbl, COL_TEXT_SOFT, 0);
+    lv_obj_align(s_feed_lbl, LV_ALIGN_CENTER, 0, UI_S(159));
 
     return s_panel;
 }
@@ -234,41 +246,56 @@ void screen_main_update(const TempestState &state) {
     }
 
     // Weather icon
+    const WeatherForecast outlook = weather_forecast(state, millis());
     weather_anim_set_icon(s_icon_anim, state.icon_slug);
+    if (outlook.fresh && state.icon_slug[0]) lv_obj_clear_flag(s_icon_anim, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(s_icon_anim, LV_OBJ_FLAG_HIDDEN);
 
     // Temperature & Unit
-    float t_display = temp_to_unit(state.air_temp_c, state.units);
+    const WeatherCurrent current = weather_current(state, millis(), time(nullptr));
+    float t_display = temp_to_unit(current.temperature_c, state.units);
     char temp_str[16];
-    snprintf(temp_str, sizeof(temp_str), "%.1f", t_display);
+    ui_number(temp_str, sizeof(temp_str), t_display, 1);
     lv_label_set_text(s_temp_lbl, temp_str);
     lv_label_set_text(s_unit_lbl, temp_unit_str(state.units));
 
     // Conditions
-    lv_label_set_text(s_cond_lbl, state.conditions_text);
+    lv_label_set_text(s_cond_lbl, outlook.conditions);
+    char age[24], feed[80];
+    weather_format_age(age, sizeof(age), state.has_observation,
+                       weather_observation_age(state, millis(), time(nullptr)));
+    snprintf(feed, sizeof(feed), "%s | %s", tempest_feed_label(state), age);
+    lv_label_set_text(s_feed_lbl, feed);
 
     // High / Low / Feels Like
-    float h_disp = temp_to_unit(state.temp_high_c, state.units);
-    float l_disp = temp_to_unit(state.temp_low_c, state.units);
-    float fl_disp = temp_to_unit(state.feels_like_c, state.units);
+    float h_disp = temp_to_unit(outlook.high_c, state.units);
+    float l_disp = temp_to_unit(outlook.low_c, state.units);
+    float fl_disp = temp_to_unit(outlook.feels_c, state.units);
     char range_buf[64];
-    snprintf(range_buf, sizeof(range_buf), "H: %.0f  L: %.0f  |  Feels %.0f",
-             roundf(h_disp), roundf(l_disp), roundf(fl_disp));
+    char hi[12], lo[12], feels[12];
+    ui_number(hi, sizeof(hi), h_disp);
+    ui_number(lo, sizeof(lo), l_disp);
+    ui_number(feels, sizeof(feels), fl_disp);
+    snprintf(range_buf, sizeof(range_buf), "H: %s  L: %s  |  Feels %s", hi, lo, feels);
     lv_label_set_text(s_range_lbl, range_buf);
 
     // Humidity & Dew Point
     char hum_buf[16];
-    snprintf(hum_buf, sizeof(hum_buf), "%.0f%%", state.humidity_pct);
+    snprintf(hum_buf, sizeof(hum_buf), "%.0f%%", current.humidity_pct);
+    if (!isfinite(current.humidity_pct)) snprintf(hum_buf, sizeof(hum_buf), "--");
     lv_label_set_text(s_humid_val_lbl, hum_buf);
 
     if (s_humid_sub_lbl) {
-        float dew_disp = temp_to_unit(state.dew_point_c, state.units);
+        float dew_disp = temp_to_unit(current.dew_point_c, state.units);
         char dew_buf[24];
         snprintf(dew_buf, sizeof(dew_buf), "Dew: %.0f°", roundf(dew_disp));
+        if (!isfinite(dew_disp)) snprintf(dew_buf, sizeof(dew_buf), "Dew: --");
         lv_label_set_text(s_humid_sub_lbl, dew_buf);
     }
 
     // Pressure & Tendency
-    float p_disp = pressure_to_unit(state.pressure_mb, state.units);
+    float p_disp = pressure_to_unit(current.pressure_mb, state.units);
+    const bool trend_valid = current.fresh && state.pressure_trend_valid;
     const char *trend_arrow = ">";
     if (state.pressure_trend_mb > 0.8f) trend_arrow = "^";
     else if (state.pressure_trend_mb < -0.8f) trend_arrow = "v";
@@ -279,6 +306,9 @@ void screen_main_update(const TempestState &state) {
     } else {
         snprintf(baro_buf, sizeof(baro_buf), "%.0f %s", roundf(p_disp), trend_arrow);
     }
+    if (!isfinite(p_disp)) snprintf(baro_buf, sizeof(baro_buf), "--");
+    else if (!trend_valid)
+        snprintf(baro_buf, sizeof(baro_buf), state.units == UNIT_IMPERIAL ? "%.2f" : "%.0f", p_disp);
     lv_label_set_text(s_baro_val_lbl, baro_buf);
 
     if (s_baro_sub_lbl) {
@@ -298,11 +328,15 @@ void screen_main_update(const TempestState &state) {
                 snprintf(tr_buf, sizeof(tr_buf), "3h: %+.1f mb", tr_val);
             }
         }
-        lv_label_set_text(s_baro_sub_lbl, tr_buf);
+        lv_label_set_text(s_baro_sub_lbl, trend_valid ? tr_buf : current.fresh ? "3h: Collecting history" : "3h: Unavailable");
     }
 
     // Update 24-hour barometric sparkline series
-    if (s_baro_chart && s_baro_ser && state.pressure_hist_count > 0) {
+    if (s_baro_chart) {
+        if (state.pressure_hist_count < 2) lv_obj_add_flag(s_baro_chart, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(s_baro_chart, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (s_baro_chart && s_baro_ser && state.pressure_hist_count >= 2) {
         uint8_t pts = (state.pressure_hist_count > 48) ? 48 : (uint8_t)state.pressure_hist_count;
         if (pts < 2) {
             lv_chart_set_point_count(s_baro_chart, 2);
@@ -331,25 +365,19 @@ void screen_main_update(const TempestState &state) {
         lv_obj_invalidate(s_baro_chart);
     }
 
-    // Footer: Alternate every 4 seconds between weather stats and Web Setup URL
+    // Keep weather details visible; access instructions live on the Info screen.
     char foot_buf[64];
     if (WiFi.status() == WL_CONNECTED) {
-        bool show_url = ((millis() / 4000) % 2 == 1);
-        if (show_url) {
-            snprintf(foot_buf, sizeof(foot_buf), "Web: http://%s/", WiFi.localIP().toString().c_str());
-        } else {
-            const char *uv_desc = "Low";
-            if (state.uv_index >= 3.0f && state.uv_index < 6.0f) uv_desc = "Mod";
-            else if (state.uv_index >= 6.0f && state.uv_index < 8.0f) uv_desc = "High";
-            else if (state.uv_index >= 8.0f) uv_desc = "Very High";
-
-            float rain_disp = (state.units == UNIT_IMPERIAL) ? (state.rain_today_mm * 0.0393701f) : state.rain_today_mm;
-            const char *rain_unit = (state.units == UNIT_IMPERIAL) ? "in" : "mm";
-            snprintf(foot_buf, sizeof(foot_buf), "UV: %.1f %s  |  Rain: %.2f %s",
-                     state.uv_index, uv_desc, rain_disp, rain_unit);
-        }
+        char uv[12], rain[12];
+        const WeatherEnvironment environment = weather_environment(state, millis(), time(nullptr));
+        ui_number(uv, sizeof(uv), environment.uv, 1);
+        ui_number(rain, sizeof(rain), state.has_observation ? rain_to_unit(state.rain_today_mm, state.units) : NAN, 2);
+        snprintf(foot_buf, sizeof(foot_buf), "UV: %s | Rain%s: %s %s", uv,
+                 state.rain_today_complete ? "" : "*", rain, rain_unit_str(state.units));
     } else {
-        snprintf(foot_buf, sizeof(foot_buf), "Wi-Fi: Connecting / Setup AP...");
+        AppSettings settings;
+        settings_get(&settings);
+        snprintf(foot_buf, sizeof(foot_buf), "Setup key: %s", settings.admin_password);
     }
     lv_label_set_text(s_footer_lbl, foot_buf);
 }

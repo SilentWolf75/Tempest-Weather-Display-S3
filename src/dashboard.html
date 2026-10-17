@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Station Display - Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151d2c;
+      --border: #243048;
+      --text: #f8fafc;
+      --dim: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --alert: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 680px;
+    }
+    .section-nav {
+      position: sticky;
+      top: 8px;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      padding: 8px;
+      margin-bottom: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .section-nav a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 8px 4px;
+      background: #1e293b;
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .section-nav a:hover { background: #334155; }
+    .section-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    #cfg_form, #display_settings, #weather_readings, #device_diagnostics, #firmware_updates {
+      scroll-margin-top: 132px;
+    }
+    @media (min-width: 600px) {
+      .section-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #064e3b;
+      color: #34d399;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+    input[type="text"], input[type="number"], input[type="password"], select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    .range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+    .range-val {
+      font-size: 14px;
+      font-weight: 600;
+      width: 48px;
+      text-align: right;
+    }
+    .radio-group {
+      display: flex;
+      gap: 12px;
+    }
+    .radio-label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px;
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .radio-label input { display: none; }
+    .radio-label.active {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent);
+    }
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--accent);
+      color: #0b0f19;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--dim);
+    }
+    .btn-secondary:hover { background: #334155; color: var(--text); }
+    .btn-warn {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--alert);
+      border: 1px solid var(--alert);
+    }
+    .btn-warn:hover { background: var(--alert); color: #fff; }
+    .status-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      font-size: 13px;
+    }
+    .status-item {
+      background: #0b0f19;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .status-label { color: var(--dim); font-size: 11px; margin-bottom: 2px; }
+    .status-val { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+    #msg_banner {
+      display: none;
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .msg-ok { background: #064e3b; color: #34d399; }
+    .msg-err { background: #7f1d1d; color: #fecaca; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">
+        <span>🌤️</span> Weather Station Display
+      </div>
+      <div class="badge" id="net_status">● Connected</div>
+    </div>
+
+    <nav class="section-nav" aria-label="Dashboard sections">
+      <a href="#weather_readings">Weather</a>
+      <a href="#display_settings">Display</a>
+      <a href="#cfg_form">Setup</a>
+      <a href="#device_diagnostics">Diagnostics</a>
+      <a href="#firmware_updates">Updates</a>
+    </nav>
+
+    <div id="msg_banner"></div>
+
+    <form id="cfg_form" tabindex="-1">
+      <!-- Wi-Fi Network Configuration -->
+      <div class="card">
+        <div class="card-title">📶 Wi-Fi Network</div>
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label style="margin:0;" for="wifi_ssid">Network Name (SSID)</label>
+            <button type="button" id="btn_scan_wifi" class="btn-secondary" style="padding:2px 8px; font-size:11px; height:24px; line-height:1; border-radius:4px;" onclick="scanWifi()">🔍 Scan Networks</button>
+          </div>
+          <select id="wifi_scan_select" style="display:none; margin-bottom:8px; border-color:var(--accent);" onchange="onWifiSelect(this.value)">
+            <option value="">-- Discovered Networks --</option>
+          </select>
+          <input type="text" id="wifi_ssid" name="wifi_ssid" placeholder="Enter Wi-Fi SSID or select above">
+        </div>
+        <div class="form-group">
+          <label for="wifi_pass">Password (leave blank to keep current)</label>
+          <input type="password" id="wifi_pass" name="wifi_pass" placeholder="••••••••">
+          <label style="margin-top:8px;"><input type="checkbox" id="wifi_open"> This network has no password</label>
+        </div>
+      </div>
+
+      <!-- Time & Location -->
+      <div class="card">
+        <div class="card-title">🕒 Time & Location</div>
+        <div class="form-group">
+          <label for="tz_preset">Timezone</label>
+          <select id="tz_preset" name="tz_preset" onchange="toggleCustomTz(); liveSetTz(this.value);">
+            <option value="0">US Eastern (ET)</option>
+            <option value="1">US Central (CT)</option>
+            <option value="2">US Mountain (MT)</option>
+            <option value="3">US Arizona (MST)</option>
+            <option value="4">US Pacific (PT)</option>
+            <option value="5">Alaska (AKT)</option>
+            <option value="6">Hawaii (HST)</option>
+            <option value="7">UTC (Coordinated Universal Time)</option>
+            <option value="8">Custom POSIX String</option>
+          </select>
+        </div>
+        <div class="form-group" id="custom_tz_group" style="display:none;">
+          <label for="tz_custom">Custom POSIX Timezone</label>
+          <input type="text" id="tz_custom" name="tz_custom" placeholder="e.g. CST6CDT,M3.2.0,M11.1.0">
+        </div>
+        <div class="form-group">
+        </div>
+      </div>
+
+      <!-- Tempest Station Settings -->
+      <div class="card">
+        <div class="card-title">🛰️ Tempest Weather Station</div>
+        <div class="form-group">
+          <label for="station_id">Tempest Station ID</label>
+          <input type="number" id="station_id" name="station_id" placeholder="e.g. 12345">
+        </div>
+        <div class="form-group">
+          <label for="api_token">Personal Access API Token (blank keeps saved token)</label>
+          <input type="password" id="api_token" name="api_token" autocomplete="new-password" placeholder="Enter or replace Tempest API Token">
+          <label style="margin-top:8px;"><input type="checkbox" id="clear_api_token"> Remove saved token</label>
+        </div>
+        <div class="form-group">
+          <label for="device_serial">Sensor Serial (optional, e.g. ST-00000512)</label>
+          <input type="text" id="device_serial" maxlength="23" placeholder="Blank accepts any Tempest on this network">
+        </div>
+      </div>
+
+      <!-- Display & Units (LIVE FEEDBACK) -->
+      <div class="card">
+        <div class="card-title" id="display_settings" tabindex="-1">⚙️ Units & Screen <span style="font-size:11px; color:var(--ok); margin-left:8px; font-weight:normal; background:#064e3b; padding:2px 7px; border-radius:9999px;">⚡ Live Updates Active</span></div>
+        <div class="form-group">
+          <label>Measurement Units</label>
+          <div class="radio-group">
+            <label class="radio-label" id="lbl_imperial">
+              <input type="radio" name="units" value="0" onchange="updateRadioStyles(); liveSetUnits(this.value);">
+              Imperial (°F, mph, inHg)
+            </label>
+            <label class="radio-label" id="lbl_metric">
+              <input type="radio" name="units" value="1" onchange="updateRadioStyles(); liveSetUnits(this.value);">
+              Metric (°C, m/s, mb)
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="clock_24h" onchange="sendLive({clock_24h:this.checked,save:true}, 'Clock format saved')"> Use a 24-hour clock
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="screen_rotation">Screen Rotation</label>
+          <select id="screen_rotation" name="screen_rotation" onchange="liveSetRotation(this.value)">
+            <option value="270">90° Left (270° Clockwise) - Recommended</option>
+            <option value="90">90° Right (90° Clockwise)</option>
+            <option value="0">Default (0°)</option>
+            <option value="180">Inverted (180°)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Day Screen Brightness (<span id="b_day_val">210</span>)</label>
+          <div class="range-wrap">
+            <input type="range" id="brightness_day" name="brightness_day" min="20" max="255" value="210"
+                   oninput="liveBrightness(this.value)" onchange="liveSaveBrightness(this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label style="margin:0;">Dim Idle Brightness (<span id="b_dim_val">35</span>)</label>
+            <button type="button" id="btn_preview_dim" class="btn-secondary" style="padding:2px 8px; font-size:11px; height:24px; line-height:1; border-radius:4px;" onclick="toggleDimPreview()">👁️ Preview (5s)</button>
+          </div>
+          <div class="range-wrap">
+            <input type="range" id="brightness_dim" name="brightness_dim" min="5" max="100" value="35"
+                   oninput="liveDimBrightness(this.value)" onchange="liveSaveDimBrightness(this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="dim_timeout_s">Display Dim Timeout</label>
+          <select id="dim_timeout_s" name="dim_timeout_s" onchange="liveSetDimTimeout(this.value)">
+            <option value="0">Never (Stay at Day Brightness)</option>
+            <option value="15">15 Seconds</option>
+            <option value="30">30 Seconds</option>
+            <option value="45">45 Seconds (Default)</option>
+            <option value="60">1 Minute</option>
+            <option value="120">2 Minutes</option>
+            <option value="300">5 Minutes</option>
+            <option value="600">10 Minutes</option>
+            <option value="1800">30 Minutes</option>
+            <option value="3600">60 Minutes (1 Hour)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="startup_screen">Startup Screen</label>
+          <select id="startup_screen" onchange="sendLive({startup_screen:parseInt(this.value),save:true}, 'Startup screen saved for next boot')">
+            <option value="0">Weather</option><option value="1">Wind</option>
+            <option value="2">Rain</option><option value="3">Lightning</option><option value="4">Info</option>
+          </select>
+          <div class="hint">Opens after restart. A device without Wi-Fi settings opens Weather for setup.</div>
+        </div>
+        <div class="form-group">
+          <label for="auto_scroll_s">Auto-Scroll Screens Interval</label>
+          <select id="auto_scroll_s" name="auto_scroll_s" onchange="liveSetAutoScroll(this.value)">
+            <option value="0">Disabled (Manual Swipe Only)</option>
+            <option value="5">5 Seconds</option>
+            <option value="10">10 Seconds (Default)</option>
+            <option value="15">15 Seconds</option>
+            <option value="20">20 Seconds</option>
+            <option value="30">30 Seconds</option>
+            <option value="60">1 Minute</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Include in Auto-Scroll</label>
+          <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <label><input type="checkbox" id="scroll_weather" onchange="liveSetScrollScreens()"> Weather</label>
+            <label><input type="checkbox" id="scroll_wind" onchange="liveSetScrollScreens()"> Wind</label>
+            <label><input type="checkbox" id="scroll_rain" onchange="liveSetScrollScreens()"> Rain</label>
+            <label><input type="checkbox" id="scroll_lightning" onchange="liveSetScrollScreens()"> Lightning</label>
+          </div>
+          <div class="hint">Swiping and tapping still reach every screen. No selections holds the current screen. Info never auto-scrolls.</div>
+        </div>
+      </div>
+
+      <!-- Card 5: Bedside Night Mode -->
+      <div class="card">
+        <div class="card-title">🌙 Bedside Night Standby Schedule</div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="night_mode_enabled" name="night_mode_enabled" style="width:auto; transform:scale(1.2);">
+            <b>Enable Automatic Bedside Dimming</b>
+          </label>
+          <div class="hint">Automatically drops screen intensity during sleeping hours to prevent bedroom glare.</div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label for="night_start_hour">Bedtime (Start Hour)</label>
+            <select id="night_start_hour" name="night_start_hour">
+              <option value="20">8:00 PM (20:00)</option>
+              <option value="21">9:00 PM (21:00)</option>
+              <option value="22" selected>10:00 PM (22:00)</option>
+              <option value="23">11:00 PM (23:00)</option>
+              <option value="0">Midnight (00:00)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="night_end_hour">Wakeup (End Hour)</label>
+            <select id="night_end_hour" name="night_end_hour">
+              <option value="5">5:00 AM (05:00)</option>
+              <option value="6">6:00 AM (06:00)</option>
+              <option value="7" selected>7:00 AM (07:00)</option>
+              <option value="8">8:00 AM (08:00)</option>
+              <option value="9">9:00 AM (09:00)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nighttime Brightness (<span id="b_night_val">8</span>)</label>
+          <div class="range-wrap">
+            <input type="range" id="brightness_night" name="brightness_night" min="2" max="30" value="8"
+                   oninput="document.getElementById('b_night_val').innerText = this.value">
+          </div>
+          <div class="hint">Zero switches the screen off. P4 uses a minimum of 64 for nonzero brightness.</div>
+        </div>
+        <div class="form-group">
+          <label for="night_wake_s">Touch Wake During Night Mode</label>
+          <select id="night_wake_s" onchange="sendLive({night_wake_s:parseInt(this.value),save:true}, 'Night touch wake saved')">
+            <option value="0">Disabled</option><option value="15">15 Seconds</option>
+            <option value="30">30 Seconds (Default)</option><option value="60">1 Minute</option>
+            <option value="120">2 Minutes</option><option value="300">5 Minutes</option>
+          </select>
+          <div class="hint">Touch temporarily raises night brightness to idle brightness, then returns to the night level. If idle brightness is zero, the default dim level is used.</div>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="btn-row">
+        <button type="submit" id="btn_save_settings" class="btn-primary" disabled>💾 Save Settings</button>
+        <button type="button" id="btn_refresh_forecast" class="btn-secondary" onclick="refreshForecast()">🔄 Refresh Forecast</button>
+        <button type="button" class="btn-warn" onclick="restartDevice()">⚠️ Reboot</button>
+      </div>
+      <p id="settings_state" class="hint" role="status" aria-live="polite">Loading saved settings...</p>
+    </form>
+
+    <!-- OTA Firmware Update Card -->
+    <div class="card" style="margin-top: 20px;" id="firmware_updates" tabindex="-1">
+      <div class="card-title">🚀 Wireless Firmware Update (OTA)</div>
+      <p style="font-size:13px; color:var(--dim); margin-bottom:12px;">
+        Upload a compiled <code>firmware.bin</code> directly over Wi-Fi without needing a USB cable:
+      </p>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="file" id="ota_file" accept=".bin" style="flex:1; min-width:0; font-size:13px; background:#0b0f19; padding:8px; border-radius:6px; border:1px solid var(--border);">
+        <button type="button" id="btn_ota_upload" class="btn-primary" style="padding:8px 16px; white-space:nowrap;" onclick="performOTA()">⚡ Upload</button>
+      </div>
+      <div id="ota_progress_wrap" style="display:none; margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--dim);">
+          <span id="ota_status_txt">Uploading firmware...</span>
+          <span id="ota_pct">0%</span>
+        </div>
+        <div style="width:100%; height:8px; background:#0b0f19; border-radius:4px; overflow:hidden;">
+          <div id="ota_bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.1s ease;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Display Preferences Backup</div>
+      <p style="color:var(--dim);font-size:13px;line-height:1.5">Save your units, clock, timezone, brightness, and screen choices. Backups exclude passwords, tokens, and network/station details.</p>
+      <div class="btn-row" style="flex-wrap:wrap">
+        <button type="button" id="backup_export" class="btn-secondary" onclick="exportPreferences()">Download Saved Preferences</button>
+      </div>
+      <label for="backup_file" style="margin-top:14px">Choose a preferences backup to review</label>
+      <input type="file" id="backup_file" accept=".json,application/json" onchange="previewPreferencesBackup()" style="max-width:100%;font-size:13px">
+      <div id="backup_preview" style="display:none;margin-top:14px">
+        <p id="backup_summary" style="font-size:13px;line-height:1.5"></p>
+        <ul id="backup_changes" style="font-size:13px;line-height:1.6;padding-left:20px;margin-top:8px;max-height:280px;overflow:auto"></ul>
+        <p style="color:var(--dim);font-size:12px;margin-top:10px">Applying reloads this form. Save any other edits first.</p>
+        <div class="btn-row" style="flex-wrap:wrap">
+          <button type="button" id="backup_apply" class="btn-primary" onclick="applyPreferencesBackup()">Apply Preferences</button>
+          <button type="button" id="backup_cancel" class="btn-secondary" onclick="cancelPreferencesBackup()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnostics -->
+    <div class="card">
+      <div class="card-title">Cloud Weather</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">State</div><div class="status-val" id="cloud_state">--</div></div>
+        <div class="status-item"><div class="status-label">Last Result</div><div class="status-val" id="cloud_result">--</div></div>
+        <div class="status-item"><div class="status-label">Last Attempt</div><div class="status-val" id="cloud_attempt">--</div></div>
+        <div class="status-item"><div class="status-label">Next Attempt</div><div class="status-val" id="cloud_retry">--</div></div>
+      </div>
+      <p class="hint" id="cloud_hint">Enter your station ID and API token to enable cloud weather. Local sensor readings work independently.</p>
+    </div>
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-title" id="device_diagnostics" tabindex="-1">📊 Live Status & Diagnostics</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Device IP</div><div class="status-val" id="st_ip">--</div></div>
+        <div class="status-item"><div class="status-label">Local Time</div><div class="status-val" id="st_time">--</div></div>
+        <div class="status-item"><div class="status-label">Wi-Fi Signal</div><div class="status-val" id="st_rssi">-- dBm</div></div>
+        <div class="status-item"><div class="status-label">Weather Source</div><div class="status-val" id="st_udp">--</div></div>
+        <div class="status-item"><div class="status-label">Reading Age</div><div class="status-val" id="st_age">--</div></div>
+        <div class="status-item"><div class="status-label">Forecast</div><div class="status-val" id="st_forecast">--</div></div>
+        <div class="status-item"><div class="status-label">Uptime</div><div class="status-val" id="st_uptime">--</div></div>
+        <div class="status-item"><div class="status-label">Firmware</div><div class="status-val" id="st_version">--</div></div>
+        <div class="status-item"><div class="status-label">Chip</div><div class="status-val" id="st_chip">--</div></div>
+        <div class="status-item"><div class="status-label">Last Restart Reason</div><div class="status-val" id="st_reset">--</div></div>
+        <div class="status-item"><div class="status-label">Free Internal Heap</div><div class="status-val" id="st_heap">--</div></div>
+        <div class="status-item"><div class="status-label">Minimum Free Internal Heap</div><div class="status-val" id="st_heap_min">--</div></div>
+        <div class="status-item"><div class="status-label">Largest Free Internal Block</div><div class="status-val" id="st_heap_block">--</div></div>
+      </div>
+      <p class="hint" id="st_contact" role="status">Connecting to device...</p>
+      <div class="btn-row" style="flex-wrap:wrap">
+        <button type="button" id="connection_check" class="btn-secondary" onclick="loadTelemetry()">Check Connection</button>
+        <button type="button" id="diagnostics_export" class="btn-secondary" onclick="exportDiagnostics()">Download Diagnostic Report</button>
+      </div>
+      <p class="hint">Report excludes network names/addresses, station identifiers, location settings, and credentials. Restart reason describes this boot; minimum heap is measured since boot.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" id="weather_readings" tabindex="-1">Current Weather</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Temperature</div><div class="status-val" id="st_temp">--</div></div>
+        <div class="status-item"><div class="status-label">Humidity</div><div class="status-val" id="current_humidity">--</div></div>
+        <div class="status-item"><div class="status-label">Dew Point</div><div class="status-val" id="current_dew">--</div></div>
+        <div class="status-item"><div class="status-label">Station Pressure</div><div class="status-val" id="st_press">--</div></div>
+      </div>
+      <p class="hint" id="current_source">Waiting for weather.</p>
+      <p class="hint">Stale readings show --. Dew point is calculated from temperature and humidity; it is unavailable at zero humidity.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Cloud Outlook</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Conditions</div><div class="status-val" id="forecast_conditions">Forecast unavailable</div></div>
+        <div class="status-item"><div class="status-label">Feels Like (Cloud Reading)</div><div class="status-val" id="forecast_feels">--</div></div>
+        <div class="status-item"><div class="status-label">Daily High</div><div class="status-val" id="forecast_high">--</div></div>
+        <div class="status-item"><div class="status-label">Daily Low</div><div class="status-val" id="forecast_low">--</div></div>
+      </div>
+      <p class="hint" id="forecast_source">Waiting for forecast.</p>
+      <p class="hint">Age is time since download. Outlook values expire after 20 minutes; local sensor readings continue independently.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Wind</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Speed</div><div class="status-val" id="wind_speed">--</div></div>
+        <div class="status-item"><div class="status-label">Direction</div><div class="status-val" id="wind_direction">--</div></div>
+        <div class="status-item"><div class="status-label">Gust</div><div class="status-val" id="wind_gust">--</div></div>
+        <div class="status-item"><div class="status-label">Lull</div><div class="status-val" id="wind_lull">--</div></div>
+        <div class="status-item"><div class="status-label">Average</div><div class="status-val" id="wind_avg">--</div></div>
+      </div>
+      <p class="hint" id="wind_source">Waiting for wind.</p>
+      <p class="hint">Gust, lull and average use fresh observation readings. Calm wind has no displayed direction.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Rain</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Current Rate</div><div class="status-val" id="rain_rate">--</div></div>
+        <div class="status-item"><div class="status-label" id="rain_today_label">Observed Today (Partial)</div><div class="status-val" id="rain_today">--</div></div>
+        <div class="status-item"><div class="status-label">Yesterday</div><div class="status-val" id="rain_yesterday">--</div></div>
+        <div class="status-item"><div class="status-label">Forecast Rain Chance</div><div class="status-val" id="rain_chance">--</div></div>
+      </div>
+      <p class="hint" id="rain_source">Waiting for rain data.</p>
+      <p class="hint">Daily totals remain available when the rate goes stale. Partial totals may miss rain from before startup or during gaps.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Lightning History</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">Observed Last 3 Hours</div><div class="status-val" id="lightning_3h">--</div></div>
+        <div class="status-item"><div class="status-label">Observed Today</div><div class="status-val" id="lightning_today">--</div></div>
+        <div class="status-item"><div class="status-label">Closest Event in 3 Hours</div><div class="status-val" id="lightning_closest">--</div></div>
+        <div class="status-item"><div class="status-label">Last Strike Event</div><div class="status-val" id="lightning_last">Not received</div></div>
+      </div>
+      <p class="hint" id="lightning_source">Waiting for sensor observations.</p>
+      <p class="hint">Counts cover received sensor reports and may miss events before startup or during gaps. Distances have no bearing. Zero observed strikes does not mean an all-clear.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Environment</div>
+      <div class="status-grid">
+        <div class="status-item"><div class="status-label">UV Index</div><div class="status-val" id="env_uv">--</div></div>
+        <div class="status-item"><div class="status-label">Solar Radiation</div><div class="status-val" id="env_solar">--</div></div>
+        <div class="status-item"><div class="status-label">Tempest Sensor Battery</div><div class="status-val" id="env_battery">--</div></div>
+      </div>
+      <p class="hint" id="env_source">Waiting for environment data.</p>
+      <p class="hint" id="env_battery_source">Waiting for sensor battery.</p>
+      <p class="hint">Battery voltage comes from the outdoor sensor. Cloud readings do not refresh it.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Pressure History</div>
+      <svg id="pressure_chart" viewBox="0 0 600 180" role="img" aria-label="Collected pressure history" style="width:100%;display:none">
+        <path d="M48 16V150H582" fill="none" stroke="#243048"/>
+        <polyline id="pressure_line" fill="none" stroke="#38bdf8" stroke-width="2"/>
+        <text id="pressure_max" x="2" y="24" fill="#94a3b8" font-size="12"></text>
+        <text id="pressure_min" x="2" y="150" fill="#94a3b8" font-size="12"></text>
+        <text id="pressure_start" x="48" y="174" fill="#94a3b8" font-size="12"></text>
+        <text id="pressure_end" x="582" y="174" text-anchor="end" fill="#94a3b8" font-size="12"></text>
+      </svg>
+      <p class="hint" id="pressure_note">Waiting for pressure samples.</p>
+      <p class="hint">Chart dates use this browser's timezone. CSV timestamps use UTC. Only collected samples are included.</p>
+      <div class="btn-row" style="flex-wrap:wrap">
+        <button type="button" id="pressure_export" class="btn-secondary" onclick="exportPressureHistory()">Download Pressure CSV</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Display Screen</div>
+      <div class="btn-row" style="flex-wrap:wrap;margin-top:0">
+        <button type="button" class="btn-secondary" onclick="selectScreen(0)">Weather</button>
+        <button type="button" class="btn-secondary" onclick="selectScreen(1)">Wind</button>
+        <button type="button" class="btn-secondary" onclick="selectScreen(2)">Rain</button>
+        <button type="button" class="btn-secondary" onclick="selectScreen(3)">Lightning</button>
+        <button type="button" class="btn-secondary" onclick="selectScreen(4)">Info</button>
+      </div>
+      <p class="hint" id="st_screen">Swipe or tap a page indicator on the device, or select a screen here.</p>
+    </div>
+  </div>
+
+  <script>
+    const PREFERENCE_RULES = {
+      units: ['Units', 'integer', 0, 1], clock_24h: ['Clock format', 'boolean'],
+      tz_preset: ['Timezone', 'integer', 0, 8], tz_custom: ['Custom timezone', 'text', 63],
+      brightness_day: ['Day brightness', 'integer', 0, 255], brightness_dim: ['Idle brightness', 'integer', 0, 255],
+      brightness_night: ['Night brightness', 'integer', 0, 255], dim_timeout_s: ['Dim timeout', 'integer', 0, 3600],
+      auto_scroll_s: ['Auto-scroll interval', 'integer', 0, 3600], startup_screen: ['Startup screen', 'integer', 0, 4],
+      auto_scroll_mask: ['Auto-scroll screens', 'integer', 0, 15], screen_rotation: ['Rotation', 'integer', 0, 270],
+      night_mode_enabled: ['Night schedule', 'boolean'], night_start_hour: ['Night start', 'integer', 0, 23],
+      night_end_hour: ['Night end', 'integer', 0, 23], night_wake_s: ['Night touch wake', 'integer', 0, 300]
+    };
+    let pendingPreferenceRestore = null;
+    let restoreGeneration = 0;
+    let restoringPreferences = false;
+
+    function validatePreferencesBackup(backup) {
+      if (!backup || typeof backup !== 'object' || Array.isArray(backup) ||
+          backup.type !== 'weather-display-preferences' || backup.format_version !== 1)
+        throw new Error('Unsupported preferences backup');
+      if (Object.keys(backup).some(key => !['type', 'format_version', 'firmware_version', 'preferences'].includes(key)))
+        throw new Error('Unexpected backup fields');
+      const source = backup.preferences;
+      if (!source || typeof source !== 'object' || Array.isArray(source) ||
+          Object.keys(source).length !== Object.keys(PREFERENCE_RULES).length ||
+          Object.keys(source).some(key => !Object.prototype.hasOwnProperty.call(PREFERENCE_RULES, key)))
+        throw new Error('Backup contains missing or unsupported preferences');
+      const result = {};
+      for (const [key, rule] of Object.entries(PREFERENCE_RULES)) {
+        const value = source[key];
+        const valid = rule[1] === 'boolean' ? typeof value === 'boolean' :
+          rule[1] === 'text' ? typeof value === 'string' && value.length <= rule[2] && /^[\x20-\x7E]*$/.test(value) :
+          Number.isInteger(value) && value >= rule[2] && value <= rule[3];
+        if (!valid || (key === 'screen_rotation' && value % 90 !== 0)) throw new Error('Invalid ' + rule[0].toLowerCase());
+        result[key] = value;
+      }
+      return result;
+    }
+
+    function makePreferencesBackup(settings, firmware) {
+      const preferences = {};
+      for (const key of Object.keys(PREFERENCE_RULES)) preferences[key] = key === 'clock_24h' ? !!settings[key] : settings[key];
+      const backup = {type: 'weather-display-preferences', format_version: 1, firmware_version: firmware, preferences};
+      validatePreferencesBackup(backup);
+      return backup;
+    }
+
+    async function readDeviceStatus() {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch('/api/status', {signal: controller.signal, cache: 'no-store'});
+        if (!res.ok) throw new Error('Cannot read device status');
+        return await res.json();
+      } finally { clearTimeout(timeout); }
+    }
+
+    function makeDiagnosticReport(data) {
+      const t = data && data.telemetry;
+      if (!t || typeof t !== 'object' || typeof t.firmware_version !== 'string') throw new Error('Invalid device diagnostics');
+      const select = (source, fields) => Object.fromEntries(Object.entries(fields).map(([key, type]) => {
+        const value = source && source[key];
+        const valid = type === 'string' ? typeof value === 'string' && value.length <= 96 && /^[\x20-\x7E]*$/.test(value) :
+          type === 'number' ? Number.isFinite(value) : typeof value === 'boolean';
+        return [key, valid ? value : null];
+      }));
+      const diagnostics = select(t, {
+        firmware_version: 'string', board: 'string', chip: 'string', reset_reason: 'string',
+        uptime_s: 'number', heap_free: 'number', heap_min_free: 'number', heap_largest_block: 'number',
+        wifi_connected: 'boolean', rssi: 'number', clock_synced: 'boolean', feed: 'string',
+        observation_age_s: 'number', forecast_age_s: 'number', forecast_fresh: 'boolean', screen: 'number'
+      });
+      diagnostics.cloud = select(t.cloud, {configured: 'boolean', busy: 'boolean', pending: 'boolean', cooldown: 'boolean',
+        http_code: 'number', attempt_age_s: 'number', retry_in_s: 'number', state: 'string', result: 'string'});
+      return {type: 'weather-display-diagnostics', format_version: 1, captured_utc: new Date().toISOString(), diagnostics};
+    }
+
+    let diagnosticsExporting = false;
+    async function exportDiagnostics() {
+      if (diagnosticsExporting) return;
+      diagnosticsExporting = true;
+      const button = document.getElementById('diagnostics_export');
+      button.disabled = true;
+      button.innerText = 'Preparing report...';
+      try {
+        const report = makeDiagnosticReport(await readDeviceStatus());
+        const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'}));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'weather-display-diagnostics.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        showBanner('Diagnostic report download started. Network details and credentials were excluded.', true);
+      } catch (e) { showBanner('Diagnostic export failed: ' + e.message, false); }
+      finally {
+        diagnosticsExporting = false;
+        button.disabled = false;
+        button.innerText = 'Download Diagnostic Report';
+      }
+    }
+
+    function renderSystem(telemetry = {}) {
+      const heap = value => Number.isFinite(value) && value >= 0 ? (value / 1024).toFixed(1) + ' KiB' : '--';
+      document.getElementById('st_chip').innerText = telemetry.chip || '--';
+      document.getElementById('st_reset').innerText = telemetry.reset_reason || '--';
+      document.getElementById('st_heap').innerText = heap(telemetry.heap_free);
+      document.getElementById('st_heap_min').innerText = heap(telemetry.heap_min_free);
+      document.getElementById('st_heap_block').innerText = heap(telemetry.heap_largest_block);
+    }
+
+    function makePressureCsv(telemetry) {
+      if (!telemetry || !['mb', 'inHg'].includes(telemetry.pressure_unit)) throw new Error('Unsupported pressure units');
+      const points = telemetry.pressure_history;
+      if (!Array.isArray(points) || !points.length) throw new Error('No pressure samples collected yet');
+      if (points.length > 48) throw new Error('Invalid pressure history');
+      let previous = 0;
+      const rows = ['timestamp_utc,pressure_' + telemetry.pressure_unit];
+      for (const point of points) {
+        if (!point || !Number.isInteger(point.epoch) || point.epoch <= previous || point.epoch > 253402300799 ||
+            !Number.isFinite(point.value) || point.value <= 0) throw new Error('Invalid pressure sample');
+        previous = point.epoch;
+        rows.push(new Date(point.epoch * 1000).toISOString() + ',' + point.value);
+      }
+      return rows.join('\r\n') + '\r\n';
+    }
+
+    let pressureExporting = false;
+    async function exportPressureHistory() {
+      if (pressureExporting) return;
+      pressureExporting = true;
+      const button = document.getElementById('pressure_export');
+      button.disabled = true;
+      button.innerText = 'Preparing CSV...';
+      try {
+        const data = await readDeviceStatus();
+        const csv = makePressureCsv(data.telemetry);
+        const url = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'weather-pressure-history.csv';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        showBanner('Pressure CSV download started. Timestamps are UTC.', true);
+      } catch (e) { showBanner('Pressure export failed: ' + e.message, false); }
+      finally {
+        pressureExporting = false;
+        button.disabled = false;
+        button.innerText = 'Download Pressure CSV';
+      }
+    }
+
+    async function exportPreferences() {
+      const button = document.getElementById('backup_export');
+      button.disabled = true;
+      try {
+        const data = await readDeviceStatus();
+        const backup = makePreferencesBackup(data.settings, data.telemetry.firmware_version);
+        const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'}));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'weather-display-preferences.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        showBanner('Preferences download started. Credentials were excluded.', true);
+      } catch (e) { showBanner('Backup failed: ' + e.message, false); }
+      finally { button.disabled = false; }
+    }
+
+    function preferenceText(key, value) {
+      if (key === 'clock_24h') return value ? '24-hour' : '12-hour';
+      if (key === 'units') return value === 0 ? 'Imperial' : 'Metric';
+      if (key === 'startup_screen') return ['Weather', 'Wind', 'Rain', 'Lightning', 'Info'][value];
+      if (key === 'auto_scroll_mask') return ['Weather', 'Wind', 'Rain', 'Lightning'].filter((_, i) => value & (1 << i)).join(', ') || 'None';
+      if (key === 'tz_preset') return ['Eastern', 'Central', 'Mountain', 'Arizona', 'Pacific', 'Alaska', 'Hawaii', 'UTC', 'Custom'][value];
+      if (key === 'night_start_hour' || key === 'night_end_hour') return String(value).padStart(2, '0') + ':00';
+      if (key.endsWith('_s')) return value + ' seconds';
+      if (typeof value === 'boolean') return value ? 'Enabled' : 'Disabled';
+      return String(value ?? '') || '(empty)';
+    }
+
+    function adaptPreferences(preferences, settings) {
+      const adapted = {...preferences};
+      const changes = [];
+      if (!settings.rotation_supported && adapted.screen_rotation !== 0) {
+        adapted.screen_rotation = 0;
+        changes.push('rotation');
+      }
+      for (const key of ['brightness_day', 'brightness_dim', 'brightness_night']) {
+        if (adapted[key] > 0 && adapted[key] < settings.brightness_min) {
+          adapted[key] = settings.brightness_min;
+          changes.push(PREFERENCE_RULES[key][0].toLowerCase());
+        }
+      }
+      return {preferences: adapted, adjustments: changes};
+    }
+
+    function cancelPreferencesBackup() {
+      if (restoringPreferences) return;
+      ++restoreGeneration;
+      pendingPreferenceRestore = null;
+      document.getElementById('backup_preview').style.display = 'none';
+      document.getElementById('backup_file').value = '';
+    }
+
+    async function previewPreferencesBackup() {
+      if (restoringPreferences) return;
+      const generation = ++restoreGeneration;
+      pendingPreferenceRestore = null;
+      document.getElementById('backup_preview').style.display = 'none';
+      document.getElementById('backup_apply').disabled = true;
+      const file = document.getElementById('backup_file').files[0];
+      if (!file) return;
+      try {
+        if (file.size > 16384) throw new Error('Backup is too large');
+        const text = await file.text();
+        if (text.length > 16384) throw new Error('Backup is too large');
+        const preferences = validatePreferencesBackup(JSON.parse(text));
+        const data = await readDeviceStatus();
+        if (generation !== restoreGeneration) return;
+        const adapted = adaptPreferences(preferences, data.settings);
+        const list = document.getElementById('backup_changes');
+        list.replaceChildren();
+        let count = 0;
+        for (const [key, value] of Object.entries(adapted.preferences)) {
+          if (value === data.settings[key]) continue;
+          const item = document.createElement('li');
+          item.textContent = PREFERENCE_RULES[key][0] + ': ' + preferenceText(key, data.settings[key]) + ' → ' + preferenceText(key, value);
+          list.appendChild(item);
+          ++count;
+        }
+        document.getElementById('backup_summary').textContent = count ? count + ' preference changes ready to apply. ' +
+          (adapted.adjustments.length ? 'Adapted for this board: ' + adapted.adjustments.join(', ') + '.' : 'Network and station settings stay as saved.') : 'These preferences already match your device.';
+        document.getElementById('backup_preview').style.display = 'block';
+        document.getElementById('backup_apply').disabled = !count;
+        pendingPreferenceRestore = count ? adapted.preferences : null;
+      } catch (e) {
+        if (generation === restoreGeneration) showBanner('Cannot restore: ' + e.message, false);
+      }
+    }
+
+    async function applyPreferencesBackup() {
+      if (!pendingPreferenceRestore || restoringPreferences) return;
+      if (!canReplaceSettings()) return;
+      restoringPreferences = true;
+      const lockedControls = Array.from(document.querySelectorAll('#cfg_form input, #cfg_form select, #cfg_form button'),
+        control => ({control, disabled: control.disabled}));
+      lockedControls.forEach(({control}) => control.disabled = true);
+      updateSettingsState();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      ['backup_apply', 'backup_cancel', 'backup_file'].forEach(id => document.getElementById(id).disabled = true);
+      try {
+        const res = await fetch('/api/settings', {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(pendingPreferenceRestore)});
+        const data = await res.json();
+        if (!res.ok || data.status !== 'ok') throw new Error(data.message || 'Device rejected preferences');
+        restoringPreferences = false;
+        cancelPreferencesBackup();
+        formInitialized = false;
+        await loadTelemetry();
+        showBanner('Preferences restored. Startup screen applies after restart.', true);
+      } catch (e) { showBanner('Restore failed: ' + e.message, false); }
+      finally {
+        clearTimeout(timeout);
+        restoringPreferences = false;
+        lockedControls.forEach(({control, disabled}) => control.disabled = disabled);
+        ['backup_cancel', 'backup_file'].forEach(id => document.getElementById(id).disabled = false);
+        document.getElementById('backup_apply').disabled = !pendingPreferenceRestore;
+        updateSettingsState();
+      }
+    }
+
+    let liveTimer = null;
+    async function sendLive(payload, successMessage) {
+      if (savingSettings || restoringPreferences) {
+        showBanner('Wait for the current save to finish, then apply this change.', false);
+        updateSettingsState();
+        return false;
+      }
+      ++liveRequests;
+      updateSettingsState();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        let res = await fetch('/api/live', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+        });
+        let data = await res.json();
+        if (!res.ok || data.status !== 'ok') throw new Error(data.message || 'Device rejected update');
+        if (payload.save && savedForm) {
+          for (const key of Object.keys(payload)) {
+            if (Object.hasOwn(savedForm, key)) savedForm[key] = payload[key];
+          }
+        }
+        if (successMessage) showBanner(successMessage, true);
+        return true;
+      } catch (e) {
+        showBanner('Update failed: ' + e.message, false);
+        return false;
+      } finally {
+        clearTimeout(timeout);
+        --liveRequests;
+        updateSettingsState();
+      }
+    }
+
+    function liveBrightness(val) {
+      document.getElementById('b_day_val').innerText = val;
+      if (liveTimer) clearTimeout(liveTimer);
+      liveTimer = setTimeout(() => {
+        sendLive({ brightness_day: parseInt(val), save: false });
+      }, 25);
+    }
+
+    function liveSaveBrightness(val) {
+      if (liveTimer) clearTimeout(liveTimer);
+      sendLive({ brightness_day: parseInt(val), save: true }, "Day brightness saved (" + val + ")");
+    }
+
+    let isDimPreviewing = false;
+    let dimPreviewTimeout = null;
+
+    function liveDimBrightness(val) {
+      document.getElementById('b_dim_val').innerText = val;
+      if (isDimPreviewing) {
+        sendLive({ preview_dim: parseInt(val), save: false });
+      }
+    }
+
+    function liveSaveDimBrightness(val) {
+      sendLive({ brightness_dim: parseInt(val), save: true }, "Dim brightness saved (" + val + ")");
+    }
+
+    function toggleDimPreview() {
+      let dayVal = parseInt(document.getElementById('brightness_day').value);
+      let dimVal = parseInt(document.getElementById('brightness_dim').value);
+      let btn = document.getElementById('btn_preview_dim');
+
+      if (!isDimPreviewing) {
+        isDimPreviewing = true;
+        btn.innerText = "⏹️ Exit";
+        btn.style.background = "#d97706";
+        btn.style.color = "#ffffff";
+        sendLive({ preview_dim: dimVal, save: false });
+        showBanner("Previewing Dim level (" + dimVal + ")...", true);
+
+        if (dimPreviewTimeout) clearTimeout(dimPreviewTimeout);
+        dimPreviewTimeout = setTimeout(() => {
+          if (isDimPreviewing) toggleDimPreview();
+        }, 5000);
+      } else {
+        isDimPreviewing = false;
+        btn.innerText = "👁️ Preview (5s)";
+        btn.style.background = "";
+        btn.style.color = "";
+        if (dimPreviewTimeout) clearTimeout(dimPreviewTimeout);
+        sendLive({ preview_cancel: true }, "Scheduled brightness restored");
+      }
+    }
+
+    function liveSetRotation(val) {
+      sendLive({ screen_rotation: parseInt(val), save: true }, "Screen rotated to " + val + "°");
+    }
+
+    function liveSetUnits(val) {
+      sendLive({ units: parseInt(val), save: true }, "Units saved");
+    }
+
+    function liveSetDimTimeout(val) {
+      sendLive({ dim_timeout_s: parseInt(val), save: true }, "Dim timeout saved");
+    }
+
+    function liveSetAutoScroll(val) {
+      sendLive({ auto_scroll_s: parseInt(val), save: true }, "Auto-scroll saved");
+    }
+
+    function liveSetTz(val) {
+      if (val !== '8') sendLive({ tz_preset: parseInt(val), save: true }, "Timezone saved");
+    }
+
+    async function scanWifi() {
+      let btn = document.getElementById('btn_scan_wifi');
+      let sel = document.getElementById('wifi_scan_select');
+      btn.innerText = "⏳ Scanning...";
+      btn.disabled = true;
+
+      try {
+        let res = await fetch('/api/wifi_scan');
+        for (let attempts = 0; res.status === 202 && attempts < 20; attempts++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          res = await fetch('/api/wifi_scan');
+        }
+        if (!res.ok || res.status === 202) throw new Error('Scan did not complete');
+        let data = await res.json();
+        sel.innerHTML = '<option value="">-- Discovered Networks (' + (data.networks ? data.networks.length : 0) + ') --</option>';
+        if (data.networks && data.networks.length > 0) {
+          data.networks.sort((a, b) => b.rssi - a.rssi);
+          data.networks.forEach(n => {
+            let opt = document.createElement('option');
+            opt.value = n.ssid;
+            let lock = n.secure ? "🔒 " : "🌐 ";
+            let signal = (n.rssi > -60) ? "Strong" : (n.rssi > -75) ? "Fair" : "Weak";
+            opt.innerText = lock + n.ssid + " (" + signal + " " + n.rssi + " dBm)";
+            sel.appendChild(opt);
+          });
+          sel.style.display = "block";
+          showBanner("Found " + data.networks.length + " Wi-Fi networks.", true);
+        } else {
+          showBanner("No networks found. Try scanning again.", false);
+        }
+      } catch (err) {
+        showBanner("Wi-Fi scan failed: " + err.message, false);
+      } finally {
+        btn.innerText = "🔍 Scan Networks";
+        btn.disabled = false;
+      }
+    }
+
+    function onWifiSelect(val) {
+      if (val) {
+        document.getElementById('wifi_ssid').value = val;
+        document.getElementById('wifi_pass').focus();
+      }
+    }
+
+    function toggleCustomTz() {
+      let v = document.getElementById('tz_preset').value;
+      document.getElementById('custom_tz_group').style.display = (v === '8') ? 'block' : 'none';
+    }
+
+    function updateRadioStyles() {
+      let isMetric = document.querySelector('input[name="units"]:checked').value === '1';
+      document.getElementById('lbl_imperial').classList.toggle('active', !isMetric);
+      document.getElementById('lbl_metric').classList.toggle('active', isMetric);
+    }
+
+    function showBanner(msg, isOk) {
+      let b = document.getElementById('msg_banner');
+      b.className = isOk ? 'msg-ok' : 'msg-err';
+      b.innerText = msg;
+      b.style.display = 'block';
+      setTimeout(() => { b.style.display = 'none'; }, 4000);
+    }
+
+    let formInitialized = false;
+    let telemetryLoading = false;
+    let telemetryTimer;
+
+    function scheduleTelemetry() {
+      clearTimeout(telemetryTimer);
+      if (!document.hidden) telemetryTimer = setTimeout(loadTelemetry, 4000);
+    }
+
+    function resumeTelemetry() {
+      clearTimeout(telemetryTimer);
+      if (!document.hidden) return loadTelemetry();
+    }
+    let savedForm = null;
+    let savingSettings = false;
+    let liveRequests = 0;
+
+    function hasUnsavedSettings() {
+      if (!savedForm) return false;
+      const current = settingsPayload();
+      return Object.keys(savedForm).some(key => current[key] !== savedForm[key]);
+    }
+
+    function updateSettingsState() {
+      document.getElementById('btn_save_settings').disabled = !formInitialized || savingSettings || restoringPreferences || liveRequests > 0;
+      document.getElementById('btn_save_settings').innerText = savingSettings ? 'Saving...' : 'Save Settings';
+      document.getElementById('settings_state').innerText = savingSettings ? 'Saving settings. Edits made now will remain unsaved.' :
+        liveRequests ? 'Applying live change...' : !formInitialized ? 'Loading saved settings...' :
+        hasUnsavedSettings() ? 'Unsaved changes — select Save Settings to keep them.' : 'Settings match the last acknowledged save.';
+    }
+
+    function canReplaceSettings() {
+      if (savingSettings || restoringPreferences || liveRequests) {
+        showBanner('Wait for the current save to finish.', false);
+        return false;
+      }
+      if (hasUnsavedSettings()) {
+        showBanner('Save your unsaved settings before restoring, rebooting, or updating firmware.', false);
+        return false;
+      }
+      return true;
+    }
+
+    document.getElementById('cfg_form').addEventListener('input', updateSettingsState);
+    document.getElementById('cfg_form').addEventListener('change', updateSettingsState);
+    window.addEventListener('beforeunload', event => {
+      if (!hasUnsavedSettings() && !savingSettings && !liveRequests && !restoringPreferences) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
+    function scrollScreenMask() {
+      return ['weather', 'wind', 'rain', 'lightning'].reduce((mask, name, index) =>
+        mask | (document.getElementById('scroll_' + name).checked ? 1 << index : 0), 0);
+    }
+
+    function liveSetScrollScreens() {
+      sendLive({auto_scroll_mask: scrollScreenMask(), save: true}, 'Auto-scroll screens saved');
+    }
+
+    function renderCloud(cloud = {}) {
+      document.getElementById('cloud_state').innerText = cloud.state || 'Waiting';
+      document.getElementById('cloud_result').innerText = (cloud.result || 'No request yet') + (cloud.http_code ? ' (' + cloud.http_code + ')' : '');
+      document.getElementById('cloud_attempt').innerText = ageText(cloud.attempt_age_s);
+      document.getElementById('cloud_retry').innerText = Number.isFinite(cloud.retry_in_s) ?
+        (cloud.retry_in_s > 0 ? 'In ' + (cloud.retry_in_s < 60 ? cloud.retry_in_s + 's' :
+          Math.floor(cloud.retry_in_s / 60) + 'm ' + cloud.retry_in_s % 60 + 's') : 'Due now') : '--';
+      document.getElementById('cloud_hint').innerText = cloud.cooldown ? 'Waiting for the service retry window. A queued refresh will run afterward.' :
+        cloud.configured ? 'Cloud retries automatically after failures. Local sensor readings continue independently.' : 'Enter your station ID and API token to enable cloud weather.';
+      const button = document.getElementById('btn_refresh_forecast');
+      button.disabled = !!(cloud.busy || cloud.pending);
+      button.innerText = cloud.busy ? 'Refreshing...' : cloud.pending ? 'Refresh queued' : 'Refresh Forecast';
+    }
+
+    function renderWind(wind = {}) {
+      const speed = value => Number.isFinite(value) ? Math.round(value) + ' ' + (wind.unit || '') : '--';
+      ['speed', 'gust', 'lull', 'avg'].forEach(key => document.getElementById('wind_' + key).innerText = speed(wind[key]));
+      document.getElementById('wind_direction').innerText = Number.isFinite(wind.direction_deg) ? wind.direction_deg + ' deg' : wind.calm ? 'Calm' : '--';
+      document.getElementById('wind_source').innerText = (wind.source || 'Waiting for wind') +
+        (wind.age_s === null || wind.age_s === undefined ? '' : ' · ' + ageText(wind.age_s));
+    }
+
+    function renderRain(rain = {}) {
+      const amount = (value, unit) => Number.isFinite(value) && value >= 0 ? value.toFixed(2) + ' ' + (unit || '') : '--';
+      document.getElementById('rain_rate').innerText = amount(rain.rate, rain.rate_unit);
+      document.getElementById('rain_today').innerText = amount(rain.today, rain.unit);
+      document.getElementById('rain_yesterday').innerText = amount(rain.yesterday, rain.unit);
+      document.getElementById('rain_today_label').innerText = rain.complete ? 'Today (Complete Total)' : 'Observed Today (Partial)';
+      document.getElementById('rain_chance').innerText = Number.isFinite(rain.probability_pct) && rain.probability_pct >= 0 && rain.probability_pct <= 100 ? rain.probability_pct + '%' : '--';
+      document.getElementById('rain_source').innerText = (rain.source || 'Waiting for rain data') +
+        (rain.age_s === null || rain.age_s === undefined ? '' : ' · ' + ageText(rain.age_s)) +
+        (Number.isFinite(rain.rate) ? ' · ' + (rain.category || '') : '');
+    }
+
+    function renderForecast(forecast = {}) {
+      document.getElementById('forecast_conditions').innerText = forecast.conditions || 'Forecast unavailable';
+      ['high', 'low', 'feels'].forEach(key => document.getElementById('forecast_' + key).innerText =
+        Number.isFinite(forecast[key]) ? forecast[key].toFixed(1) + ' ' + (forecast.unit || '') : '--');
+      document.getElementById('forecast_source').innerText = (forecast.source || 'Waiting for forecast') +
+        (Number.isFinite(forecast.age_s) ? ' · Downloaded ' + ageText(forecast.age_s) : '');
+    }
+
+    function renderCurrent(current = {}) {
+      const temperature = number => Number.isFinite(number) ? number.toFixed(1) + ' ' + (current.temperature_unit || '') : '--';
+      document.getElementById('st_temp').innerText = temperature(current.temperature);
+      document.getElementById('current_dew').innerText = temperature(current.dew_point);
+      document.getElementById('current_humidity').innerText = Number.isFinite(current.humidity_pct) && current.humidity_pct >= 0 && current.humidity_pct <= 100 ? Math.round(current.humidity_pct) + '%' : '--';
+      document.getElementById('st_press').innerText = Number.isFinite(current.pressure) && current.pressure > 0 ?
+        current.pressure.toFixed(current.pressure_unit === 'inHg' ? 2 : 1) + ' ' + (current.pressure_unit || '') : '--';
+      document.getElementById('current_source').innerText = (current.source || 'Waiting for weather') +
+        (Number.isFinite(current.age_s) ? ' · ' + ageText(current.age_s) : '');
+    }
+
+    function renderEnvironment(environment = {}) {
+      const value = (number, decimals, unit = '') => Number.isFinite(number) && number >= 0 ? number.toFixed(decimals) + unit : '--';
+      document.getElementById('env_uv').innerText = value(environment.uv, 1);
+      document.getElementById('env_solar').innerText = value(environment.solar, 0, ' W/m²');
+      document.getElementById('env_battery').innerText = environment.battery > 0 ? value(environment.battery, 2, ' V') : '--';
+      document.getElementById('env_source').innerText = (environment.source || 'Waiting for environment data') +
+        (Number.isFinite(environment.age_s) ? ' · ' + ageText(environment.age_s) : '');
+      document.getElementById('env_battery_source').innerText = (environment.battery_source || 'Waiting for sensor battery') +
+        (Number.isFinite(environment.battery_age_s) ? ' · ' + ageText(environment.battery_age_s) : '');
+    }
+
+    function renderLightning(lightning = {}) {
+      ['3h', 'today'].forEach(key => document.getElementById('lightning_' + key).innerText =
+        Number.isInteger(lightning['count_' + key]) && lightning['count_' + key] >= 0 ? lightning['count_' + key] + ' strikes' : '--');
+      document.getElementById('lightning_closest').innerText = Number.isFinite(lightning.closest) && lightning.closest >= 0 ?
+        lightning.closest.toFixed(1) + ' ' + (lightning.unit || '') : '--';
+      document.getElementById('lightning_last').innerText = Number.isFinite(lightning.last_age_s) ? ageText(lightning.last_age_s) :
+        lightning.event_received ? 'Time unknown' : 'Not received';
+      document.getElementById('lightning_source').innerText = lightning.source || 'Waiting for sensor observations.';
+    }
+
+    function ageText(seconds) {
+      if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return 'Waiting';
+      if (seconds < 60) return Math.floor(seconds) + 's ago';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ' + Math.floor(seconds % 3600 / 60) + 'm ago';
+      return Math.floor(seconds / 86400) + 'd ' + Math.floor(seconds % 86400 / 3600) + 'h ago';
+    }
+
+    function drawPressure(telemetry, units) {
+      const points = (telemetry.pressure_history || []).filter(p => Number.isFinite(p.value) && Number.isFinite(p.epoch));
+      const chart = document.getElementById('pressure_chart');
+      chart.style.display = points.length >= 2 ? 'block' : 'none';
+      if (points.length < 2) {
+        document.getElementById('pressure_note').innerText = points.length ? 'First sample collected. The next arrives after 30 minutes of observations.' : 'Waiting for pressure samples.';
+        return;
+      }
+      const values = points.map(p => p.value);
+      const low = Math.min(...values), high = Math.max(...values);
+      const padding = Math.max((high - low) * 0.15, units === 0 ? 0.01 : 0.3);
+      const bottom = low - padding, top = high + padding;
+      const start = points[0].epoch, end = points.at(-1).epoch;
+      const span = Math.max(1, end - start);
+      const coords = points.map(p => (48 + (p.epoch - start) / span * 534).toFixed(1) + ',' + (150 - (p.value - bottom) / (top - bottom) * 134).toFixed(1));
+      document.getElementById('pressure_line').setAttribute('points', coords.join(' '));
+      const decimals = units === 0 ? 2 : 1;
+      document.getElementById('pressure_max').textContent = top.toFixed(decimals);
+      document.getElementById('pressure_min').textContent = bottom.toFixed(decimals);
+      const dateLabel = epoch => new Date(epoch * 1000).toLocaleString(undefined,
+        {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
+      document.getElementById('pressure_start').textContent = dateLabel(start);
+      document.getElementById('pressure_end').textContent = dateLabel(end);
+      chart.setAttribute('aria-label', 'Pressure history: ' + low.toFixed(decimals) + ' to ' + high.toFixed(decimals) + ' ' + telemetry.pressure_unit + ' across ' + Math.round(span / 60) + ' minutes');
+      document.getElementById('pressure_note').innerText = points.length + ' measured samples · ' + telemetry.pressure_unit + ' · latest ' + ageText(telemetry.pressure_sample_age_s) + '. History starts at boot; samples arrive every 30 minutes.';
+      chart.style.opacity = '1';
+    }
+
+    async function selectScreen(index) {
+      try {
+        const res = await fetch('/view?i=' + index, {method: 'POST'});
+        const data = await res.json();
+        if (!res.ok || data.status !== 'ok') throw new Error('Device rejected screen change');
+        showBanner('Display screen changed', true);
+        loadTelemetry();
+      } catch (e) { showBanner('Screen change failed: ' + e.message, false); }
+    }
+
+    async function loadTelemetry() {
+      if (telemetryLoading || document.hidden) return;
+      clearTimeout(telemetryTimer);
+      telemetryLoading = true;
+      const checkButton = document.getElementById('connection_check');
+      checkButton.disabled = true;
+      checkButton.innerText = 'Checking...';
+      document.getElementById('st_contact').innerText = 'Checking connection to device...';
+      document.getElementById('st_contact').setAttribute('aria-busy', 'true');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        let res = await fetch('/api/status', {signal: controller.signal, cache: 'no-store'});
+        if (!res.ok) throw new Error("API error");
+        let data = await res.json();
+
+        // Populate form inputs only on initial load
+        if (!formInitialized) {
+          document.getElementById('wifi_ssid').value = data.settings.wifi_ssid || '';
+          document.getElementById('wifi_pass').value = ''; // leave blank for security
+          document.getElementById('wifi_open').checked = data.settings.wifi_open;
+          document.getElementById('clear_api_token').checked = false;
+          document.getElementById('tz_preset').value = data.settings.tz_preset;
+          document.getElementById('tz_custom').value = data.settings.tz_custom || '';
+          document.getElementById('station_id').value = (data.settings.station_id > 0) ? data.settings.station_id : '';
+          document.getElementById('api_token').value = '';
+          document.getElementById('api_token').placeholder = data.settings.api_token_saved ? 'Saved token — blank keeps it' : 'Enter Tempest API Token';
+          document.getElementById('device_serial').value = data.settings.device_serial || '';
+          document.getElementById('clock_24h').checked = !!data.settings.clock_24h;
+
+          let unitRadios = document.querySelectorAll('input[name="units"]');
+          unitRadios.forEach(r => { r.checked = (parseInt(r.value) === data.settings.units); });
+
+          const rotation = document.getElementById('screen_rotation');
+          const nativeRotation = String((data.telemetry.board || '') + (data.telemetry.chip || '')).includes('P4') ? '0' : '270';
+          for (const option of rotation.options || []) {
+            option.textContent = option.textContent.replace(' - Recommended', '');
+            if (option.value === nativeRotation) option.textContent += ' - Recommended';
+          }
+          rotation.value = data.settings.screen_rotation;
+          document.getElementById('screen_rotation').disabled = !data.settings.rotation_supported;
+          document.getElementById('screen_rotation').parentElement.style.display = data.settings.rotation_supported ? '' : 'none';
+          ['brightness_day', 'brightness_dim', 'brightness_night'].forEach(id => {
+            document.getElementById(id).min = 0;
+            document.getElementById(id).max = 255;
+            document.getElementById(id).title = data.settings.brightness_min ? 'P4: levels below ' + data.settings.brightness_min + ' use that minimum; zero switches off.' : '';
+          });
+          document.getElementById('brightness_day').value = data.settings.brightness_day;
+          document.getElementById('b_day_val').innerText = data.settings.brightness_day;
+          document.getElementById('brightness_dim').value = data.settings.brightness_dim;
+          document.getElementById('b_dim_val').innerText = data.settings.brightness_dim;
+          document.getElementById('dim_timeout_s').value = (data.settings.dim_timeout_s !== undefined) ? data.settings.dim_timeout_s : 45;
+          document.getElementById('auto_scroll_s').value = (data.settings.auto_scroll_s !== undefined) ? data.settings.auto_scroll_s : 10;
+          document.getElementById('startup_screen').value = data.settings.startup_screen ?? 0;
+          const mask = data.settings.auto_scroll_mask ?? 15;
+          ['weather', 'wind', 'rain', 'lightning'].forEach((name, index) => {
+            document.getElementById('scroll_' + name).checked = !!(mask & (1 << index));
+          });
+          document.getElementById('night_wake_s').value = data.settings.night_wake_s ?? 30;
+          document.getElementById('night_mode_enabled').checked = (data.settings.night_mode_enabled !== undefined) ? data.settings.night_mode_enabled : true;
+          document.getElementById('night_start_hour').value = (data.settings.night_start_hour !== undefined) ? data.settings.night_start_hour : 22;
+          document.getElementById('night_end_hour').value = (data.settings.night_end_hour !== undefined) ? data.settings.night_end_hour : 7;
+          document.getElementById('brightness_night').value = (data.settings.brightness_night !== undefined) ? data.settings.brightness_night : 8;
+          document.getElementById('b_night_val').innerText = document.getElementById('brightness_night').value;
+
+          toggleCustomTz();
+          updateRadioStyles();
+          formInitialized = true;
+          savedForm = settingsPayload();
+          updateSettingsState();
+        }
+
+        // Live telemetry updates continuously without touching form inputs
+        document.getElementById('st_ip').innerText = data.telemetry.ip;
+        document.getElementById('st_time').innerText = data.telemetry.local_time;
+        document.getElementById('st_rssi').innerText = data.telemetry.wifi_connected ? data.telemetry.rssi + ' dBm' : 'Disconnected';
+        document.getElementById('st_udp').innerText = data.telemetry.feed;
+        document.getElementById('net_status').innerText = data.telemetry.wifi_connected ? 'Connected' : 'Setup / Offline';
+        renderCurrent(data.telemetry.current);
+        renderForecast(data.telemetry.forecast);
+        document.getElementById('st_age').innerText = ageText(data.telemetry.observation_age_s);
+        document.getElementById('st_forecast').innerText = (data.telemetry.forecast_fresh ? 'Current · ' : 'Unavailable / stale · ') + ageText(data.telemetry.forecast_age_s);
+        const uptime = data.telemetry.uptime_s;
+        document.getElementById('st_uptime').innerText = Math.floor(uptime / 86400) + 'd ' + Math.floor(uptime % 86400 / 3600) + 'h ' + Math.floor(uptime % 3600 / 60) + 'm';
+        document.getElementById('st_version').innerText = 'v' + data.telemetry.firmware_version;
+        renderSystem(data.telemetry);
+        document.getElementById('st_screen').innerText = 'Showing: ' + ['Weather', 'Wind', 'Rain', 'Lightning', 'Info'][data.telemetry.screen];
+        document.getElementById('st_contact').innerText = data.telemetry.clock_synced ? 'Device responding · clock synchronized' : 'Device responding · waiting for clock synchronization';
+        drawPressure(data.telemetry, data.settings.units);
+        renderCloud(data.telemetry.cloud);
+        renderWind(data.telemetry.wind);
+        renderRain(data.telemetry.rain);
+        renderLightning(data.telemetry.lightning);
+        renderEnvironment(data.telemetry.environment);
+      } catch (e) {
+        console.error(e);
+        document.getElementById('net_status').innerText = 'Device unavailable';
+        renderSystem();
+        ['st_ip', 'st_time', 'st_rssi', 'st_udp', 'st_temp', 'st_press', 'st_age', 'st_forecast', 'st_uptime', 'st_version'].forEach(id => document.getElementById(id).innerText = '--');
+        document.getElementById('st_contact').innerText = 'Lost contact with device. Retrying automatically.';
+        document.getElementById('st_screen').innerText = 'Display screen unavailable';
+        document.getElementById('pressure_chart').style.opacity = '0.35';
+        document.getElementById('pressure_note').innerText = 'Device unavailable. Chart shows the last received history.';
+        ['cloud_state', 'cloud_result', 'cloud_attempt', 'cloud_retry'].forEach(id => document.getElementById(id).innerText = '--');
+        document.getElementById('cloud_hint').innerText = 'Device unavailable. Cloud request status cannot be checked.';
+        renderWind({source: 'Device unavailable. Wind readings cannot be checked.'});
+        renderRain({source: 'Device unavailable. Rain readings cannot be checked.'});
+        renderLightning({source: 'Device unavailable. Lightning history cannot be checked.'});
+        renderEnvironment({source: 'Device unavailable. Environment readings cannot be checked.', battery_source: 'Sensor battery cannot be checked.'});
+        renderCurrent({source: 'Device unavailable. Current weather cannot be checked.'});
+        renderForecast({conditions: 'Unavailable', source: 'Device unavailable. Cloud outlook cannot be checked.'});
+        document.getElementById('lightning_last').innerText = '--';
+        document.getElementById('btn_refresh_forecast').disabled = false;
+        document.getElementById('btn_refresh_forecast').innerText = 'Refresh Forecast';
+      } finally {
+        clearTimeout(timeout);
+        telemetryLoading = false;
+        checkButton.disabled = false;
+        checkButton.innerText = 'Check Connection';
+        document.getElementById('st_contact').setAttribute('aria-busy', 'false');
+        scheduleTelemetry();
+      }
+    }
+
+    function settingsPayload() {
+      return {
+        wifi_ssid: document.getElementById('wifi_ssid').value,
+        wifi_pass: document.getElementById('wifi_pass').value,
+        wifi_open: document.getElementById('wifi_open').checked,
+        clear_api_token: document.getElementById('clear_api_token').checked,
+        station_id: parseInt(document.getElementById('station_id').value || '0'),
+        api_token: document.getElementById('api_token').value.trim(),
+        tz_preset: parseInt(document.getElementById('tz_preset').value),
+        tz_custom: document.getElementById('tz_custom').value.trim(),
+        device_serial: document.getElementById('device_serial').value.trim(),
+        units: parseInt(document.querySelector('input[name="units"]:checked').value),
+        clock_24h: document.getElementById('clock_24h').checked,
+        screen_rotation: parseInt(document.getElementById('screen_rotation').value),
+        brightness_day: parseInt(document.getElementById('brightness_day').value),
+        brightness_dim: parseInt(document.getElementById('brightness_dim').value),
+        dim_timeout_s: parseInt(document.getElementById('dim_timeout_s').value),
+        auto_scroll_s: parseInt(document.getElementById('auto_scroll_s').value),
+        startup_screen: parseInt(document.getElementById('startup_screen').value),
+        auto_scroll_mask: scrollScreenMask(),
+        night_wake_s: parseInt(document.getElementById('night_wake_s').value),
+        night_mode_enabled: document.getElementById('night_mode_enabled').checked,
+        night_start_hour: parseInt(document.getElementById('night_start_hour').value),
+        night_end_hour: parseInt(document.getElementById('night_end_hour').value),
+        brightness_night: parseInt(document.getElementById('brightness_night').value)
+      };
+    }
+
+    document.getElementById('cfg_form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!formInitialized || savingSettings || restoringPreferences || liveRequests) return;
+      const payload = settingsPayload();
+      savingSettings = true;
+      updateSettingsState();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        let res = await fetch('/api/settings', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        let resJson = await res.json();
+        if (res.ok && resJson.status === 'ok') {
+          // Acknowledge the submitted snapshot, preserving edits made during the request.
+          savedForm = {...payload, wifi_pass: '', api_token: '', clear_api_token: false};
+          ['wifi_pass', 'api_token'].forEach(key => {
+            const input = document.getElementById(key);
+            const submitted = key === 'api_token' ? input.value.trim() : input.value;
+            if (submitted === payload[key]) input.value = '';
+          });
+          if (document.getElementById('clear_api_token').checked === payload.clear_api_token)
+            document.getElementById('clear_api_token').checked = false;
+          document.getElementById('api_token').placeholder = payload.clear_api_token ? 'Enter Tempest API Token' : 'Blank keeps the saved token';
+          showBanner(resJson.wifi_reconnecting ? 'Saved. Connecting to the selected Wi-Fi network...' : 'Settings saved and applied.', true);
+          loadTelemetry();
+        } else {
+          showBanner("Failed to save: " + (resJson.message || "Error"), false);
+        }
+      } catch (err) {
+        showBanner('Save not confirmed. Your edits are kept; check the connection and try again.', false);
+      } finally {
+        clearTimeout(timeout);
+        savingSettings = false;
+        updateSettingsState();
+      }
+    });
+
+    async function refreshForecast() {
+      try {
+        let res = await fetch('/api/forecast_refresh', { method: 'POST' });
+        if (!res.ok) throw new Error('Refresh rejected');
+        document.getElementById('btn_refresh_forecast').disabled = true;
+        document.getElementById('btn_refresh_forecast').innerText = 'Refresh queued';
+        showBanner('Refresh queued. Cloud Weather shows its progress.', true);
+        loadTelemetry();
+      } catch (e) {
+        showBanner("Failed to trigger refresh", false);
+      }
+    }
+
+    async function restartDevice() {
+      if (!canReplaceSettings()) return;
+      if (!confirm("Are you sure you want to reboot the display?")) return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch('/api/restart', { method: 'POST', signal: controller.signal });
+        if (!res.ok) throw new Error('Restart rejected');
+        showBanner("Device is restarting... Please wait 10 seconds.", true);
+        setTimeout(() => { location.reload(); }, 9000);
+      } catch (e) {
+        showBanner('Restart not confirmed. Check the device before trying again.', false);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    async function performOTA() {
+      if (!canReplaceSettings()) return;
+      let fileInput = document.getElementById('ota_file');
+      if (!fileInput.files.length) {
+        showBanner("Please select a firmware.bin file to upload", false);
+        return;
+      }
+      let file = fileInput.files[0];
+      if (!confirm("Flash '" + file.name + "' (" + Math.round(file.size/1024) + " KB) over the air?")) return;
+
+      let btn = document.getElementById('btn_ota_upload');
+      let pWrap = document.getElementById('ota_progress_wrap');
+      let pBar = document.getElementById('ota_bar');
+      let pPct = document.getElementById('ota_pct');
+      let pTxt = document.getElementById('ota_status_txt');
+
+      btn.disabled = true;
+      fileInput.disabled = true;
+      pWrap.style.display = 'block';
+
+      let xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/ota_update', true);
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          let pct = Math.round((e.loaded / e.total) * 100);
+          pBar.style.width = pct + '%';
+          pPct.innerText = pct + '%';
+        }
+      };
+
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          pBar.style.width = '100%';
+          pPct.innerText = '100%';
+          pTxt.innerText = 'Flash complete! Rebooting into new firmware...';
+          showBanner("OTA Update Successful! Device is rebooting...", true);
+          setTimeout(() => { location.reload(); }, 12000);
+        } else {
+          showBanner("OTA Failed: " + xhr.responseText, false);
+          btn.disabled = false;
+          fileInput.disabled = false;
+        }
+      };
+
+      xhr.onerror = function() {
+        showBanner("Network error during OTA upload", false);
+        btn.disabled = false;
+        fileInput.disabled = false;
+      };
+
+      let formData = new FormData();
+      formData.append('firmware', file, file.name);
+      xhr.send(formData);
+    }
+
+    loadTelemetry();
+    document.addEventListener('visibilitychange', resumeTelemetry);
+    window.addEventListener('online', resumeTelemetry);
+  </script>
+</body>
+</html>

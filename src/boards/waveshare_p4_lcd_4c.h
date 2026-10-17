@@ -55,6 +55,5 @@
 #define DSI_LDO_MV          2500
 
 // ---------- Peripherals Present ----------
-#define BOARD_HAS_WIFIMANAGER 0
 #define BOARD_WIFI_HOSTED     1
 #define LVGL_BUF_LINES        40

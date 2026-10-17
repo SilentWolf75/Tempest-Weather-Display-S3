@@ -16,28 +16,33 @@ enum TzPreset {
 };
 
 struct AppSettings {
+    char     admin_password[17]; // Generated per-device login / setup hotspot password
     char     wifi_ssid[33];     // Wi-Fi SSID
     char     wifi_password[65]; // Wi-Fi Password
     uint8_t  tz_preset;         // TzPreset enum (0..8)
     char     tz_custom[64];     // Custom POSIX timezone string
-    char     zipcode[10];       // 5-digit US zipcode
     uint32_t station_id;        // WeatherFlow Tempest station ID
     char     api_token[128];    // WeatherFlow Personal Access Token
+    char     device_serial[24]; // Optional UDP sensor serial filter
     uint8_t  units;             // 0 = Imperial (°F, mph, inHg, in, mi), 1 = Metric (°C, m/s, mb, mm, km)
+    bool     clock_24h;         // false = 12-hour clock (upgrade default)
     uint8_t  brightness_day;    // 10..255 (default ~210)
     uint8_t  brightness_dim;    // 5..100  (default ~35)
     uint16_t dim_timeout_s;     // Idle seconds before dimming (0 = never dim, default 45)
     uint16_t auto_scroll_s;     // Seconds between auto screen scroll (0 = disabled, default 10)
+    uint8_t  startup_screen;    // 0..4: Weather, Wind, Rain, Lightning, Info
+    uint8_t  auto_scroll_mask;  // Bits 0..3: included weather screens (default 15)
     uint16_t screen_rotation;   // 0, 90, 180, 270 (default 270)
     bool     night_mode_enabled;// Automatically dim during night hours
     uint8_t  night_start_hour;  // 0..23 (default 22 = 10 PM)
     uint8_t  night_end_hour;    // 0..23 (default 7 = 7 AM)
     uint8_t  brightness_night;  // 2..50 (default 8)
+    uint16_t night_wake_s;      // Touch wake duration at idle brightness, 0 = disabled
 };
 
 void settings_init();
 void settings_get(AppSettings *out);
-void settings_save(const AppSettings *in);
+bool settings_save(const AppSettings *in);
 const char* settings_get_tz_posix();
 const char* settings_get_tz_name(uint8_t preset);
 void settings_apply_timezone();

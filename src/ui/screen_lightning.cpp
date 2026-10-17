@@ -1,5 +1,6 @@
 #include "screen_lightning.h"
 #include "config.h"
+#include "weather_diagnostics.h"
 #include <Arduino.h>
 #include <stdio.h>
 #include <math.h>
@@ -119,7 +120,6 @@ static void radar_draw_cb(lv_event_t *e) {
     }
 
     // Render multi-strike history markers (up to 4 past strikes)
-    const float strike_angles[4] = { 45.0f, 135.0f, 225.0f, 315.0f };
     const lv_opa_t strike_opas[4] = { LV_OPA_COVER, LV_OPA_70, LV_OPA_50, LV_OPA_30 };
 
     TempestState cur_st;
@@ -130,7 +130,10 @@ static void radar_draw_cb(lv_event_t *e) {
         if (d_km <= 0.0f || d_km > 65.0f) continue;
 
         lv_coord_t max_r = UI_S(200);
-        lv_coord_t strike_r = (lv_coord_t)((d_km / 64.0f) * (float)max_r);
+        // Range zones use a logarithmic scale: 8, 16, 32, 64 km.
+        float zone = d_km <= 8 ? d_km / 8 : (d_km <= 16 ? 1 + (d_km - 8) / 8 :
+                     (d_km <= 32 ? 2 + (d_km - 16) / 16 : 3 + (d_km - 32) / 32));
+        lv_coord_t strike_r = (lv_coord_t)(zone * UI_S(50));
         if (strike_r < UI_S(20)) strike_r = UI_S(20);
         if (strike_r > max_r) strike_r = max_r;
 
@@ -138,20 +141,8 @@ static void radar_draw_cb(lv_event_t *e) {
                                 ((d_km < 16.0f) ? COL_ZONE_AMBER :
                                 ((d_km < 32.0f) ? COL_ZONE_YELLOW : COL_ZONE_GREEN));
 
-        if (i == 0) {
-            // Pulsing strike range circle for the newest strike
-            draw_ring(d, cx, cy, strike_r, strike_col, UI_S(2), LV_OPA_70);
-        }
-
-        // Blip marker at strike distance with spread angles
-        float blip_rad = strike_angles[i] * (float)M_PI / 180.0f;
-        lv_coord_t bx = (lv_coord_t)(cx + sinf(blip_rad) * strike_r);
-        lv_coord_t by = (lv_coord_t)(cy - cosf(blip_rad) * strike_r);
-
-        fill_circle(d, bx, by, UI_S(i == 0 ? 5 : 4), strike_col, strike_opas[i]);
-        if (i == 0) {
-            draw_ring(d, bx, by, UI_S(9), strike_col, UI_S(2), LV_OPA_70);
-        }
+        // Tempest reports distance only. A full ring never implies a bearing.
+        draw_ring(d, cx, cy, strike_r, strike_col, UI_S(i == 0 ? 2 : 1), strike_opas[i]);
     }
 
     // Center station dot
@@ -270,13 +261,13 @@ lv_obj_t* screen_lightning_create(lv_obj_t *parent) {
     s_cnt3h_lbl = lv_label_create(card_3h);
     lv_obj_set_style_text_font(s_cnt3h_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_cnt3h_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_cnt3h_lbl, "0 STRIKES");
+    lv_label_set_text(s_cnt3h_lbl, "-- STRIKES");
     lv_obj_align(s_cnt3h_lbl, LV_ALIGN_TOP_MID, 0, UI_S(20));
 
     s_cat3h_lbl = lv_label_create(card_3h);
     lv_obj_set_style_text_font(s_cat3h_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_cat3h_lbl, COL_ZONE_GREEN, 0);
-    lv_label_set_text(s_cat3h_lbl, "Status: Clear");
+    lv_label_set_text(s_cat3h_lbl, "No recent events received");
     lv_obj_align(s_cat3h_lbl, LV_ALIGN_TOP_MID, 0, UI_S(42));
 
     // Right Card: Daily Total & Last Detected
@@ -293,19 +284,19 @@ lv_obj_t* screen_lightning_create(lv_obj_t *parent) {
     lv_obj_t *hdr_today = lv_label_create(card_today);
     lv_obj_set_style_text_font(hdr_today, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(hdr_today, COL_SWEEP, 0);
-    lv_label_set_text(hdr_today, "TODAY'S TOTAL");
+    lv_label_set_text(hdr_today, "OBSERVED TODAY");
     lv_obj_align(hdr_today, LV_ALIGN_TOP_MID, 0, UI_S(5));
 
     s_cnttoday_lbl = lv_label_create(card_today);
     lv_obj_set_style_text_font(s_cnttoday_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_cnttoday_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_cnttoday_lbl, "0 STRIKES");
+    lv_label_set_text(s_cnttoday_lbl, "-- STRIKES");
     lv_obj_align(s_cnttoday_lbl, LV_ALIGN_TOP_MID, 0, UI_S(20));
 
     s_cattoday_lbl = lv_label_create(card_today);
     lv_obj_set_style_text_font(s_cattoday_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_cattoday_lbl, COL_TEXT_SOFT, 0);
-    lv_label_set_text(s_cattoday_lbl, "Last: None");
+    lv_label_set_text(s_cattoday_lbl, "Last: Not received");
     lv_obj_align(s_cattoday_lbl, LV_ALIGN_TOP_MID, 0, UI_S(42));
 
     // Centered Footer (placed cleanly above 5 page dots)
@@ -348,55 +339,44 @@ void screen_lightning_update(const TempestState &state) {
     }
 
     time_t now = time(nullptr);
-    int64_t elapsed_s = (state.last_strike_epoch > 0 && now > state.last_strike_epoch) ?
-                        (now - state.last_strike_epoch) : -1;
 
-    bool has_recent = (state.lightning_dist_km > 0.0f && elapsed_s >= 0 && elapsed_s < 10800);
+    bool has_recent = state.closest_strike_km >= 0;
 
     if (has_recent) {
-        float d_disp = dist_to_unit(state.lightning_dist_km, state.units);
+        float d_disp = dist_to_unit(state.closest_strike_km, state.units);
         const char *u_str = dist_unit_str(state.units);
 
         char dist_buf[32];
         snprintf(dist_buf, sizeof(dist_buf), "Closest: %.1f %s", d_disp, u_str);
         lv_label_set_text(s_cat3h_lbl, dist_buf);
 
-        if (state.lightning_dist_km < 8.0f) {
+        if (state.closest_strike_km < 8.0f) {
             lv_obj_set_style_text_color(s_cat3h_lbl, COL_ZONE_RED, 0);
-        } else if (state.lightning_dist_km < 16.0f) {
+        } else if (state.closest_strike_km < 16.0f) {
             lv_obj_set_style_text_color(s_cat3h_lbl, COL_ZONE_AMBER, 0);
         } else {
             lv_obj_set_style_text_color(s_cat3h_lbl, COL_ZONE_YELLOW, 0);
         }
     } else {
-        lv_label_set_text(s_cat3h_lbl, "Status: Clear");
+        lv_label_set_text(s_cat3h_lbl, "No recent events received");
         lv_obj_set_style_text_color(s_cat3h_lbl, COL_ZONE_GREEN, 0);
     }
 
     // 3-Hour Strike Count
     char cnt3h_buf[32];
     snprintf(cnt3h_buf, sizeof(cnt3h_buf), "%d STRIKES", state.lightning_count_3h);
+    if (!state.has_udp_observation) snprintf(cnt3h_buf, sizeof(cnt3h_buf), "-- STRIKES");
     lv_label_set_text(s_cnt3h_lbl, cnt3h_buf);
 
     // Today's Total Strike Count
     char cnttoday_buf[32];
     snprintf(cnttoday_buf, sizeof(cnttoday_buf), "%d STRIKES", state.lightning_count_today);
+    if (!state.has_udp_observation) snprintf(cnttoday_buf, sizeof(cnttoday_buf), "-- STRIKES");
     lv_label_set_text(s_cnttoday_lbl, cnttoday_buf);
 
     // Last strike timestamp / elapsed in right card
     char last_buf[32];
-    if (elapsed_s >= 0 && elapsed_s < 86400) {
-        int m = (int)(elapsed_s / 60);
-        if (m < 1) {
-            snprintf(last_buf, sizeof(last_buf), "Last: < 1m ago");
-        } else if (m < 60) {
-            snprintf(last_buf, sizeof(last_buf), "Last: %dm ago", m);
-        } else {
-            snprintf(last_buf, sizeof(last_buf), "Last: %dh ago", m / 60);
-        }
-    } else {
-        snprintf(last_buf, sizeof(last_buf), "Last: None");
-    }
+    weather_format_last_strike(last_buf, sizeof(last_buf), state.last_strike_epoch, now);
     lv_label_set_text(s_cattoday_lbl, last_buf);
 
     if (s_radar_canvas) lv_obj_invalidate(s_radar_canvas);

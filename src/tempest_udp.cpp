@@ -1,6 +1,7 @@
 #include "tempest_udp.h"
 #include "tempest_state.h"
 #include "config.h"
+#include "settings_mgr.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -15,10 +16,14 @@
 #define UDP_RX_BUF_SIZE 2048
 
 static TaskHandle_t s_udp_task_handle = nullptr;
+static uint32_t s_stack_free = 0;
+
+uint32_t tempest_udp_stack_free() { return s_stack_free; }
 
 static void handle_rapid_wind(JsonDocument &doc) {
     JsonArray ob = doc["ob"];
     if (ob.size() >= 3) {
+        if (!ob[0].is<int64_t>() || !ob[1].is<float>() || !ob[2].is<int>()) return;
         int64_t epoch = ob[0].as<int64_t>();
         float speed_ms = ob[1].as<float>();
         int dir_deg = ob[2].as<int>();
@@ -31,6 +36,17 @@ static void handle_obs_st(JsonDocument &doc) {
     if (obs.size() < 1) return;
     JsonArray o = obs[0];
     if (o.size() < 18) return;
+    const int numeric[] = {1, 2, 3, 6, 7, 8, 12, 14, 17};
+    for (int index : numeric) if (!o[index].is<float>()) return;
+    if (!o[0].is<int64_t>() || !o[4].is<int>() || !o[13].is<int>() || !o[15].is<int>()) return;
+    if (o[13].as<int>() < 0 || o[13].as<int>() > 3) return;
+    // Optional measurements must not discard the remaining observation or
+    // become fabricated zeroes through coercion.
+    const auto optional_number = [](JsonVariantConst value, bool positive = false) -> float {
+        if (!value.is<float>()) return NAN;
+        float number = value.as<float>();
+        return isfinite(number) && (positive ? number > 0 : number >= 0) ? number : NAN;
+    };
 
     int64_t epoch       = o[0].as<int64_t>();
     float   wind_lull   = o[1].as<float>();
@@ -40,13 +56,13 @@ static void handle_obs_st(JsonDocument &doc) {
     float   pressure    = o[6].as<float>();
     float   temp_c      = o[7].as<float>();
     float   humidity    = o[8].as<float>();
-    float   uv          = o[10].as<float>();
-    float   solar       = o[11].as<float>();
+    float   uv          = optional_number(o[10]);
+    float   solar       = optional_number(o[11]);
     float   rain_min    = o[12].as<float>();
     int     precip_type = o[13].as<int>();
     float   strike_dist = o[14].as<float>();
     int     strike_cnt  = o[15].as<int>();
-    float   battery     = o[16].as<float>();
+    float   battery     = optional_number(o[16], true);
 
     Serial.printf("[tempest_udp] obs_st: %.1f C, %.0f%% RH, %.1f mb, wind %.1f m/s, rain %.2f mm (type %d)\n",
                   temp_c, humidity, pressure, wind_avg, rain_min, precip_type);
@@ -60,6 +76,7 @@ static void handle_obs_st(JsonDocument &doc) {
 static void handle_precip(JsonDocument &doc) {
     JsonArray evt = doc["evt"];
     if (evt.size() >= 1) {
+        if (!evt[0].is<int64_t>()) return;
         int64_t epoch = evt[0].as<int64_t>();
         Serial.printf("[tempest_udp] Rain event started! Epoch: %lld\n", (long long)epoch);
         tempest_update_precip_event(epoch);
@@ -69,6 +86,7 @@ static void handle_precip(JsonDocument &doc) {
 static void handle_strike(JsonDocument &doc) {
     JsonArray evt = doc["evt"];
     if (evt.size() >= 3) {
+        if (!evt[0].is<int64_t>() || !evt[1].is<float>() || !evt[2].is<uint32_t>()) return;
         int64_t  epoch   = evt[0].as<int64_t>();
         float    dist_km = evt[1].as<float>();
         uint32_t energy  = evt[2].as<uint32_t>();
@@ -82,6 +100,7 @@ static void tempest_udp_task(void *pvParameters) {
     char *rx_buf = (char *)malloc(UDP_RX_BUF_SIZE);
     if (!rx_buf) {
         Serial.println("[tempest_udp] Failed to allocate UDP buffer");
+        s_udp_task_handle = nullptr;
         vTaskDelete(NULL);
         return;
     }
@@ -137,6 +156,10 @@ static void tempest_udp_task(void *pvParameters) {
                 doc.clear();
                 DeserializationError err = deserializeJson(doc, rx_buf);
                 if (!err) {
+                    AppSettings settings;
+                    settings_get(&settings);
+                    const char *serial = doc["serial_number"] | "";
+                    if (settings.device_serial[0] && strcmp(settings.device_serial, serial)) continue;
                     const char *type = doc["type"];
                     if (type) {
                         if (strcmp(type, "rapid_wind") == 0) {
@@ -152,7 +175,7 @@ static void tempest_udp_task(void *pvParameters) {
                 }
             } else if (len < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    // Normal receive timeout, continue listening
+                    s_stack_free = uxTaskGetStackHighWaterMark(nullptr);
                     continue;
                 }
                 Serial.printf("[tempest_udp] recvfrom errno %d\n", errno);
@@ -169,7 +192,8 @@ static void tempest_udp_task(void *pvParameters) {
 }
 
 void tempest_udp_start() {
-    xTaskCreatePinnedToCore(
+    if (s_udp_task_handle) return;
+    if (xTaskCreatePinnedToCore(
         tempest_udp_task,
         "tempest_udp",
         4096,
@@ -177,5 +201,8 @@ void tempest_udp_start() {
         2,
         &s_udp_task_handle,
         0
-    );
+    ) != pdPASS) {
+        s_udp_task_handle = nullptr;
+        Serial.println("[tempest_udp] Task creation failed");
+    }
 }

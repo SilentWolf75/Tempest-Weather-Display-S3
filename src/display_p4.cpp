@@ -176,11 +176,14 @@ const uint16_t *display_p4_framebuffer(void) {
 
 // LVGL flush. The DPI panel owns its framebuffer, so this is a straight blit; the
 // area is inclusive on both ends in LVGL and exclusive at the end in esp_lcd.
-void display_p4_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *px) {
-    if (s_panel) {
-        esp_lcd_panel_draw_bitmap(s_panel, area->x1, area->y1,
-                                  area->x2 + 1, area->y2 + 1, px);
+void display_p4_blit(int x, int y, int w, int h, const void *pixels) {
+    if (s_panel && pixels && w > 0 && h > 0) {
+        esp_lcd_panel_draw_bitmap(s_panel, x, y, x + w, y + h, pixels);
     }
+}
+
+void display_p4_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *px) {
+    display_p4_blit(area->x1, area->y1, area->x2 - area->x1 + 1, area->y2 - area->y1 + 1, px);
     lv_disp_flush_ready(drv);
 }
 

@@ -152,11 +152,19 @@ bool begin() {
     }
 
     s_buf2 = (lv_color_t *)heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    if (!s_buf1) {
+        Serial.println("[display] No LVGL draw buffer available");
+        return false;
+    }
     if (!s_buf2) {
         s_buf2 = nullptr; // single buffer fallback
     }
 
     s_rotBuf = (lv_color_t *)heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    if (!s_rotBuf) {
+        Serial.println("[display] No rotation buffer available");
+        return false;
+    }
     s_frameBuf = (lv_color_t *)heap_caps_calloc((size_t)SCREEN_W * SCREEN_H, sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     if (!s_frameBuf) {
         Serial.println("[display] WARNING: Framebuffer capture buffer allocation failed");

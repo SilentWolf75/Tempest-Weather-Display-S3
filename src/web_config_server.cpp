@@ -5,6 +5,18 @@
 #include "display.h"
 #include "config.h"
 #include "ui/ui.h"
+#include "brightness_mgr.h"
+#include "weather_diagnostics.h"
+#include "weather_clock.h"
+#include "weather_wind.h"
+#include "weather_rain.h"
+#include "weather_environment.h"
+#include "weather_current.h"
+#include "weather_forecast.h"
+#include "weather_reset.h"
+#include "weather_ota.h"
+#include <esp_timer.h>
+#include <esp_heap_caps.h>
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -13,767 +25,75 @@
 #include <ArduinoJson.h>
 #include <Update.h>
 #include <time.h>
+#include <math.h>
 
 static WebServer s_server(80);
 static bool s_server_started = false;
+static uint32_t s_wifi_change_ms = 0;
+static bool s_wifi_change_pending = false;
+static bool s_ota_started = false;
+static bool s_ota_complete = false;
+static bool s_ota_armed = false;
+static bool s_ota_rejected = false;
+static bool s_ota_header_ok = false;
+static bool s_ota_marked = false;
+static bool s_setup_ap = false;
+static uint8_t s_ota_prefix[112];
+static size_t s_ota_prefix_len = 0;
+static uint8_t s_ota_tail[32];
+static size_t s_ota_tail_len = 0;
 
-static const char HTML_DASHBOARD[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Weather Station Display - Settings</title>
-  <style>
-    :root {
-      --bg: #0b0f19;
-      --card: #151d2c;
-      --border: #243048;
-      --text: #f8fafc;
-      --dim: #94a3b8;
-      --accent: #38bdf8;
-      --accent-hover: #0284c7;
-      --ok: #10b981;
-      --warn: #f59e0b;
-      --alert: #ef4444;
+static bool authorized(bool challenge = true) {
+    AppSettings s;
+    settings_get(&s);
+    if (!s_server.authenticate("admin", s.admin_password)) {
+        if (challenge) s_server.requestAuthentication(DIGEST_AUTH, "Weather Display", "Use admin and the password shown on the Info screen.");
+        return false;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 16px;
-      display: flex;
-      justify-content: center;
+    String origin = s_server.header("Origin");
+    if (origin.length() && origin != String("http://") + s_server.hostHeader()) {
+        if (challenge) s_server.send(403, "application/json", "{\"status\":\"error\",\"message\":\"Invalid request origin\"}");
+        return false;
     }
-    .container {
-      width: 100%;
-      max-width: 680px;
+    s_server.sendHeader("Cache-Control", "no-store");
+    return true;
+}
+
+static bool valid_settings_payload(JsonDocument &doc) {
+    struct Bound { const char *key; int low; int high; };
+    const Bound bounds[] = {{"units",0,1}, {"tz_preset",0,8}, {"brightness_day",0,255},
+        {"brightness_dim",0,255}, {"brightness_night",0,255}, {"preview_dim",0,255},
+        {"night_start_hour",0,23}, {"night_end_hour",0,23}, {"dim_timeout_s",0,3600},
+        {"auto_scroll_s",0,3600}, {"screen_rotation",0,270}, {"startup_screen",0,4},
+        {"auto_scroll_mask",0,15}, {"night_wake_s",0,300}};
+    for (const auto &b : bounds) {
+        if (!doc[b.key].isNull() && (!doc[b.key].is<int>() || doc[b.key].as<int>() < b.low || doc[b.key].as<int>() > b.high)) return false;
     }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 14px;
-      margin-bottom: 20px;
-      border-bottom: 1px solid var(--border);
+    if (!doc["screen_rotation"].isNull() && doc["screen_rotation"].as<int>() % 90) return false;
+    struct TextBound { const char *key; size_t max; };
+    const TextBound texts[] = {{"wifi_ssid",32}, {"wifi_pass",64}, {"tz_custom",63},
+                              {"api_token",127}, {"device_serial",23}};
+    for (const auto &t : texts) {
+        if (!doc[t.key].isNull() && (!doc[t.key].is<const char*>() || strlen(doc[t.key].as<const char*>()) > t.max)) return false;
     }
-    .title {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .badge {
-      padding: 3px 8px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 600;
-      background: #064e3b;
-      color: #34d399;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 18px;
-    }
-    .card-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--dim);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .form-group {
-      margin-bottom: 14px;
-    }
-    .form-group:last-child {
-      margin-bottom: 0;
-    }
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--dim);
-      margin-bottom: 6px;
-    }
-    input[type="text"], input[type="number"], input[type="password"], select {
-      width: 100%;
-      padding: 10px 12px;
-      background: #0b0f19;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 14px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    input:focus, select:focus {
-      border-color: var(--accent);
-    }
-    .range-wrap {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    input[type="range"] {
-      flex: 1;
-      accent-color: var(--accent);
-    }
-    .range-val {
-      font-size: 14px;
-      font-weight: 600;
-      width: 48px;
-      text-align: right;
-    }
-    .radio-group {
-      display: flex;
-      gap: 12px;
-    }
-    .radio-label {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 10px;
-      background: #0b0f19;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 600;
-      transition: all 0.2s;
-    }
-    .radio-label input { display: none; }
-    .radio-label.active {
-      border-color: var(--accent);
-      background: rgba(56, 189, 248, 0.12);
-      color: var(--accent);
-    }
-    .btn-row {
-      display: flex;
-      gap: 12px;
-      margin-top: 20px;
-    }
-    button {
-      flex: 1;
-      padding: 12px;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s, transform 0.1s;
-    }
-    button:active { transform: scale(0.98); }
-    .btn-primary {
-      background: var(--accent);
-      color: #0b0f19;
-    }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-secondary {
-      background: #1e293b;
-      color: var(--dim);
-    }
-    .btn-secondary:hover { background: #334155; color: var(--text); }
-    .btn-warn {
-      background: rgba(239, 68, 68, 0.2);
-      color: var(--alert);
-      border: 1px solid var(--alert);
-    }
-    .btn-warn:hover { background: var(--alert); color: #fff; }
-    .status-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      font-size: 13px;
-    }
-    .status-item {
-      background: #0b0f19;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-    .status-label { color: var(--dim); font-size: 11px; margin-bottom: 2px; }
-    .status-val { font-size: 14px; font-weight: 600; color: var(--text); }
-    #msg_banner {
-      display: none;
-      padding: 12px 14px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .msg-ok { background: #064e3b; color: #34d399; }
-    .msg-err { background: #7f1d1d; color: #fecaca; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="title">
-        <span>🌤️</span> Weather Station Display
-      </div>
-      <div class="badge" id="net_status">● Connected</div>
-    </div>
+    if (!doc["station_id"].isNull() && !doc["station_id"].is<uint32_t>()) return false;
+    if (!doc["night_mode_enabled"].isNull() && !doc["night_mode_enabled"].is<bool>()) return false;
+    if (!doc["clock_24h"].isNull() && !doc["clock_24h"].is<bool>()) return false;
+    if (!doc["wifi_open"].isNull() && !doc["wifi_open"].is<bool>()) return false;
+    if (!doc["clear_api_token"].isNull() && !doc["clear_api_token"].is<bool>()) return false;
+    return doc.is<JsonObject>();
+}
 
-    <div id="msg_banner"></div>
-
-    <form id="cfg_form">
-      <!-- Wi-Fi Network Configuration -->
-      <div class="card">
-        <div class="card-title">📶 Wi-Fi Network</div>
-        <div class="form-group">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <label style="margin:0;" for="wifi_ssid">Network Name (SSID)</label>
-            <button type="button" id="btn_scan_wifi" class="btn-secondary" style="padding:2px 8px; font-size:11px; height:24px; line-height:1; border-radius:4px;" onclick="scanWifi()">🔍 Scan Networks</button>
-          </div>
-          <select id="wifi_scan_select" style="display:none; margin-bottom:8px; border-color:var(--accent);" onchange="onWifiSelect(this.value)">
-            <option value="">-- Discovered Networks --</option>
-          </select>
-          <input type="text" id="wifi_ssid" name="wifi_ssid" placeholder="Enter Wi-Fi SSID or select above">
-        </div>
-        <div class="form-group">
-          <label for="wifi_pass">Password (leave blank to keep current)</label>
-          <input type="password" id="wifi_pass" name="wifi_pass" placeholder="••••••••">
-        </div>
-      </div>
-
-      <!-- Time & Location -->
-      <div class="card">
-        <div class="card-title">🕒 Time & Location</div>
-        <div class="form-group">
-          <label for="tz_preset">Timezone</label>
-          <select id="tz_preset" name="tz_preset" onchange="toggleCustomTz(); liveSetTz(this.value);">
-            <option value="0">US Eastern (ET)</option>
-            <option value="1">US Central (CT)</option>
-            <option value="2">US Mountain (MT)</option>
-            <option value="3">US Arizona (MST)</option>
-            <option value="4">US Pacific (PT)</option>
-            <option value="5">Alaska (AKT)</option>
-            <option value="6">Hawaii (HST)</option>
-            <option value="7">UTC (Coordinated Universal Time)</option>
-            <option value="8">Custom POSIX String</option>
-          </select>
-        </div>
-        <div class="form-group" id="custom_tz_group" style="display:none;">
-          <label for="tz_custom">Custom POSIX Timezone</label>
-          <input type="text" id="tz_custom" name="tz_custom" placeholder="e.g. CST6CDT,M3.2.0,M11.1.0">
-        </div>
-        <div class="form-group">
-          <label for="zipcode">Zip Code (for local forecast & radar)</label>
-          <input type="text" id="zipcode" name="zipcode" maxlength="10" placeholder="e.g. 90210">
-        </div>
-      </div>
-
-      <!-- Tempest Station Settings -->
-      <div class="card">
-        <div class="card-title">🛰️ Tempest Weather Station</div>
-        <div class="form-group">
-          <label for="station_id">Tempest Station ID</label>
-          <input type="number" id="station_id" name="station_id" placeholder="e.g. 12345">
-        </div>
-        <div class="form-group">
-          <label for="api_token">Personal Access API Token</label>
-          <input type="text" id="api_token" name="api_token" placeholder="Enter Tempest API Token">
-        </div>
-      </div>
-
-      <!-- Display & Units (LIVE FEEDBACK) -->
-      <div class="card">
-        <div class="card-title">⚙️ Units & Screen <span style="font-size:11px; color:var(--ok); margin-left:8px; font-weight:normal; background:#064e3b; padding:2px 7px; border-radius:9999px;">⚡ Live Updates Active</span></div>
-        <div class="form-group">
-          <label>Measurement Units</label>
-          <div class="radio-group">
-            <label class="radio-label" id="lbl_imperial">
-              <input type="radio" name="units" value="0" onchange="updateRadioStyles(); liveSetUnits(this.value);">
-              Imperial (°F, mph, inHg)
-            </label>
-            <label class="radio-label" id="lbl_metric">
-              <input type="radio" name="units" value="1" onchange="updateRadioStyles(); liveSetUnits(this.value);">
-              Metric (°C, m/s, mb)
-            </label>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="screen_rotation">Screen Rotation</label>
-          <select id="screen_rotation" name="screen_rotation" onchange="liveSetRotation(this.value)">
-            <option value="270">90° Left (270° Clockwise) - Recommended</option>
-            <option value="90">90° Right (90° Clockwise)</option>
-            <option value="0">Default (0°)</option>
-            <option value="180">Inverted (180°)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Day Screen Brightness (<span id="b_day_val">210</span>)</label>
-          <div class="range-wrap">
-            <input type="range" id="brightness_day" name="brightness_day" min="20" max="255" value="210"
-                   oninput="liveBrightness(this.value)" onchange="liveSaveBrightness(this.value)">
-          </div>
-        </div>
-        <div class="form-group">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <label style="margin:0;">Dim Idle Brightness (<span id="b_dim_val">35</span>)</label>
-            <button type="button" id="btn_preview_dim" class="btn-secondary" style="padding:2px 8px; font-size:11px; height:24px; line-height:1; border-radius:4px;" onclick="toggleDimPreview()">👁️ Preview (5s)</button>
-          </div>
-          <div class="range-wrap">
-            <input type="range" id="brightness_dim" name="brightness_dim" min="5" max="100" value="35"
-                   oninput="liveDimBrightness(this.value)" onchange="liveSaveDimBrightness(this.value)">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="dim_timeout_s">Display Dim Timeout</label>
-          <select id="dim_timeout_s" name="dim_timeout_s" onchange="liveSetDimTimeout(this.value)">
-            <option value="0">Never (Stay at Day Brightness)</option>
-            <option value="15">15 Seconds</option>
-            <option value="30">30 Seconds</option>
-            <option value="45">45 Seconds (Default)</option>
-            <option value="60">1 Minute</option>
-            <option value="120">2 Minutes</option>
-            <option value="300">5 Minutes</option>
-            <option value="600">10 Minutes</option>
-            <option value="1800">30 Minutes</option>
-            <option value="3600">60 Minutes (1 Hour)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="auto_scroll_s">Auto-Scroll Screens Interval</label>
-          <select id="auto_scroll_s" name="auto_scroll_s" onchange="liveSetAutoScroll(this.value)">
-            <option value="0">Disabled (Manual Swipe Only)</option>
-            <option value="5">5 Seconds</option>
-            <option value="10">10 Seconds (Default)</option>
-            <option value="15">15 Seconds</option>
-            <option value="20">20 Seconds</option>
-            <option value="30">30 Seconds</option>
-            <option value="60">1 Minute</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Card 5: Bedside Night Mode -->
-      <div class="card">
-        <div class="card-title">🌙 Bedside Night Standby Schedule</div>
-        <div class="form-group">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="checkbox" id="night_mode_enabled" name="night_mode_enabled" style="width:auto; transform:scale(1.2);">
-            <b>Enable Automatic Bedside Dimming</b>
-          </label>
-          <div class="hint">Automatically drops screen intensity during sleeping hours to prevent bedroom glare.</div>
-        </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-          <div class="form-group">
-            <label for="night_start_hour">Bedtime (Start Hour)</label>
-            <select id="night_start_hour" name="night_start_hour">
-              <option value="20">8:00 PM (20:00)</option>
-              <option value="21">9:00 PM (21:00)</option>
-              <option value="22" selected>10:00 PM (22:00)</option>
-              <option value="23">11:00 PM (23:00)</option>
-              <option value="0">Midnight (00:00)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="night_end_hour">Wakeup (End Hour)</label>
-            <select id="night_end_hour" name="night_end_hour">
-              <option value="5">5:00 AM (05:00)</option>
-              <option value="6">6:00 AM (06:00)</option>
-              <option value="7" selected>7:00 AM (07:00)</option>
-              <option value="8">8:00 AM (08:00)</option>
-              <option value="9">9:00 AM (09:00)</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Nighttime Brightness (<span id="b_night_val">8</span>)</label>
-          <div class="range-wrap">
-            <input type="range" id="brightness_night" name="brightness_night" min="2" max="30" value="8"
-                   oninput="document.getElementById('b_night_val').innerText = this.value">
-          </div>
-          <div class="hint">Minimal OLED power level (2–30). Ultra-dim to protect your sleep.</div>
-        </div>
-      </div>
-
-      <!-- Buttons -->
-      <div class="btn-row">
-        <button type="submit" class="btn-primary">💾 Save Settings</button>
-        <button type="button" class="btn-secondary" onclick="refreshForecast()">🔄 Refresh Forecast</button>
-        <button type="button" class="btn-warn" onclick="restartDevice()">⚠️ Reboot</button>
-      </div>
-    </form>
-
-    <!-- OTA Firmware Update Card -->
-    <div class="card" style="margin-top: 20px;">
-      <div class="card-title">🚀 Wireless Firmware Update (OTA)</div>
-      <p style="font-size:13px; color:var(--dim); margin-bottom:12px;">
-        Upload a compiled <code>firmware.bin</code> directly over Wi-Fi without needing a USB cable:
-      </p>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input type="file" id="ota_file" accept=".bin" style="flex:1; font-size:13px; background:#0b0f19; padding:8px; border-radius:6px; border:1px solid var(--border);">
-        <button type="button" id="btn_ota_upload" class="btn-primary" style="padding:8px 16px; white-space:nowrap;" onclick="performOTA()">⚡ Upload</button>
-      </div>
-      <div id="ota_progress_wrap" style="display:none; margin-top:12px;">
-        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--dim);">
-          <span id="ota_status_txt">Uploading firmware...</span>
-          <span id="ota_pct">0%</span>
-        </div>
-        <div style="width:100%; height:8px; background:#0b0f19; border-radius:4px; overflow:hidden;">
-          <div id="ota_bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.1s ease;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Diagnostics -->
-    <div class="card" style="margin-top: 20px;">
-      <div class="card-title">📊 Live Status & Diagnostics</div>
-      <div class="status-grid">
-        <div class="status-item"><div class="status-label">Device IP</div><div class="status-val" id="st_ip">--</div></div>
-        <div class="status-item"><div class="status-label">Local Time</div><div class="status-val" id="st_time">--</div></div>
-        <div class="status-item"><div class="status-label">Wi-Fi Signal</div><div class="status-val" id="st_rssi">-- dBm</div></div>
-        <div class="status-item"><div class="status-label">UDP Broadcasts</div><div class="status-val" id="st_udp">--</div></div>
-        <div class="status-item"><div class="status-label">Live Temperature</div><div class="status-val" id="st_temp">--</div></div>
-        <div class="status-item"><div class="status-label">Live Pressure</div><div class="status-val" id="st_press">--</div></div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let liveTimer = null;
-    function sendLive(payload) {
-      fetch('/api/live', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(e => console.error("Live update error", e));
-    }
-
-    function liveBrightness(val) {
-      document.getElementById('b_day_val').innerText = val;
-      if (liveTimer) clearTimeout(liveTimer);
-      liveTimer = setTimeout(() => {
-        sendLive({ brightness_day: parseInt(val), save: false });
-      }, 25);
-    }
-
-    function liveSaveBrightness(val) {
-      if (liveTimer) clearTimeout(liveTimer);
-      sendLive({ brightness_day: parseInt(val), save: true });
-      showBanner("Day brightness updated live (" + val + ")", true);
-    }
-
-    let isDimPreviewing = false;
-    let dimPreviewTimeout = null;
-
-    function liveDimBrightness(val) {
-      document.getElementById('b_dim_val').innerText = val;
-      if (isDimPreviewing) {
-        sendLive({ preview_dim: parseInt(val), save: false });
-      }
-    }
-
-    function liveSaveDimBrightness(val) {
-      sendLive({ brightness_dim: parseInt(val), save: true });
-      showBanner("Dim brightness saved (" + val + ")", true);
-    }
-
-    function toggleDimPreview() {
-      let dayVal = parseInt(document.getElementById('brightness_day').value);
-      let dimVal = parseInt(document.getElementById('brightness_dim').value);
-      let btn = document.getElementById('btn_preview_dim');
-
-      if (!isDimPreviewing) {
-        isDimPreviewing = true;
-        btn.innerText = "⏹️ Exit";
-        btn.style.background = "#d97706";
-        btn.style.color = "#ffffff";
-        sendLive({ preview_dim: dimVal, save: false });
-        showBanner("Previewing Dim level (" + dimVal + ")...", true);
-
-        if (dimPreviewTimeout) clearTimeout(dimPreviewTimeout);
-        dimPreviewTimeout = setTimeout(() => {
-          if (isDimPreviewing) toggleDimPreview();
-        }, 5000);
-      } else {
-        isDimPreviewing = false;
-        btn.innerText = "👁️ Preview (5s)";
-        btn.style.background = "";
-        btn.style.color = "";
-        if (dimPreviewTimeout) clearTimeout(dimPreviewTimeout);
-        sendLive({ brightness_day: dayVal, save: false });
-        showBanner("Restored Day brightness (" + dayVal + ")", true);
-      }
-    }
-
-    function liveSetRotation(val) {
-      sendLive({ screen_rotation: parseInt(val), save: true });
-      showBanner("Screen rotated live to " + val + "°", true);
-    }
-
-    function liveSetUnits(val) {
-      sendLive({ units: parseInt(val), save: true });
-      showBanner("Units switched to " + (val === '0' ? 'Imperial' : 'Metric'), true);
-    }
-
-    function liveSetDimTimeout(val) {
-      sendLive({ dim_timeout_s: parseInt(val), save: true });
-      showBanner("Dim timeout set to " + (val === '0' ? 'Never' : val + 's'), true);
-    }
-
-    function liveSetAutoScroll(val) {
-      sendLive({ auto_scroll_s: parseInt(val), save: true });
-      showBanner("Auto-scroll set to " + (val === '0' ? 'Disabled' : val + 's'), true);
-    }
-
-    function liveSetTz(val) {
-      sendLive({ tz_preset: parseInt(val), save: true });
-      showBanner("Timezone updated live!", true);
-    }
-
-    async function scanWifi() {
-      let btn = document.getElementById('btn_scan_wifi');
-      let sel = document.getElementById('wifi_scan_select');
-      btn.innerText = "⏳ Scanning...";
-      btn.disabled = true;
-
-      try {
-        let res = await fetch('/api/wifi_scan');
-        let data = await res.json();
-        sel.innerHTML = '<option value="">-- Discovered Networks (' + (data.networks ? data.networks.length : 0) + ') --</option>';
-        if (data.networks && data.networks.length > 0) {
-          data.networks.sort((a, b) => b.rssi - a.rssi);
-          data.networks.forEach(n => {
-            let opt = document.createElement('option');
-            opt.value = n.ssid;
-            let lock = n.secure ? "🔒 " : "🌐 ";
-            let signal = (n.rssi > -60) ? "Strong" : (n.rssi > -75) ? "Fair" : "Weak";
-            opt.innerText = lock + n.ssid + " (" + signal + " " + n.rssi + " dBm)";
-            sel.appendChild(opt);
-          });
-          sel.style.display = "block";
-          showBanner("Found " + data.networks.length + " Wi-Fi networks.", true);
-        } else {
-          showBanner("No networks found. Try scanning again.", false);
-        }
-      } catch (err) {
-        showBanner("Wi-Fi scan failed: " + err.message, false);
-      } finally {
-        btn.innerText = "🔍 Scan Networks";
-        btn.disabled = false;
-      }
-    }
-
-    function onWifiSelect(val) {
-      if (val) {
-        document.getElementById('wifi_ssid').value = val;
-        document.getElementById('wifi_pass').focus();
-      }
-    }
-
-    function toggleCustomTz() {
-      let v = document.getElementById('tz_preset').value;
-      document.getElementById('custom_tz_group').style.display = (v === '8') ? 'block' : 'none';
-    }
-
-    function updateRadioStyles() {
-      let isMetric = document.querySelector('input[name="units"]:checked').value === '1';
-      document.getElementById('lbl_imperial').classList.toggle('active', !isMetric);
-      document.getElementById('lbl_metric').classList.toggle('active', isMetric);
-    }
-
-    function showBanner(msg, isOk) {
-      let b = document.getElementById('msg_banner');
-      b.className = isOk ? 'msg-ok' : 'msg-err';
-      b.innerText = msg;
-      b.style.display = 'block';
-      setTimeout(() => { b.style.display = 'none'; }, 4000);
-    }
-
-    let formInitialized = false;
-
-    async function loadTelemetry() {
-      try {
-        let res = await fetch('/api/status');
-        if (!res.ok) throw new Error("API error");
-        let data = await res.json();
-
-        // Populate form inputs only on initial load
-        if (!formInitialized) {
-          document.getElementById('wifi_ssid').value = data.settings.wifi_ssid || '';
-          document.getElementById('wifi_pass').value = ''; // leave blank for security
-          document.getElementById('tz_preset').value = data.settings.tz_preset;
-          document.getElementById('tz_custom').value = data.settings.tz_custom || '';
-          document.getElementById('zipcode').value = data.settings.zipcode || '';
-          document.getElementById('station_id').value = (data.settings.station_id > 0) ? data.settings.station_id : '';
-          document.getElementById('api_token').value = data.settings.api_token || '';
-
-          let unitRadios = document.querySelectorAll('input[name="units"]');
-          unitRadios.forEach(r => { r.checked = (parseInt(r.value) === data.settings.units); });
-
-          document.getElementById('screen_rotation').value = data.settings.screen_rotation;
-          document.getElementById('brightness_day').value = data.settings.brightness_day;
-          document.getElementById('b_day_val').innerText = data.settings.brightness_day;
-          document.getElementById('brightness_dim').value = data.settings.brightness_dim;
-          document.getElementById('b_dim_val').innerText = data.settings.brightness_dim;
-          document.getElementById('dim_timeout_s').value = (data.settings.dim_timeout_s !== undefined) ? data.settings.dim_timeout_s : 45;
-          document.getElementById('auto_scroll_s').value = (data.settings.auto_scroll_s !== undefined) ? data.settings.auto_scroll_s : 10;
-          document.getElementById('night_mode_enabled').checked = (data.settings.night_mode_enabled !== undefined) ? data.settings.night_mode_enabled : true;
-          document.getElementById('night_start_hour').value = (data.settings.night_start_hour !== undefined) ? data.settings.night_start_hour : 22;
-          document.getElementById('night_end_hour').value = (data.settings.night_end_hour !== undefined) ? data.settings.night_end_hour : 7;
-          document.getElementById('brightness_night').value = (data.settings.brightness_night !== undefined) ? data.settings.brightness_night : 8;
-          document.getElementById('b_night_val').innerText = document.getElementById('brightness_night').value;
-
-          toggleCustomTz();
-          updateRadioStyles();
-          formInitialized = true;
-        }
-
-        // Live telemetry updates continuously without touching form inputs
-        document.getElementById('st_ip').innerText = data.telemetry.ip;
-        document.getElementById('st_time').innerText = data.telemetry.local_time;
-        document.getElementById('st_rssi').innerText = data.telemetry.rssi + ' dBm';
-        document.getElementById('st_udp').innerText = data.telemetry.udp_received ? '● Active' : 'Waiting...';
-        document.getElementById('st_temp').innerText = data.telemetry.temp_display;
-        document.getElementById('st_press').innerText = data.telemetry.press_display;
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    document.getElementById('cfg_form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      let payload = {
-        wifi_ssid: document.getElementById('wifi_ssid').value,
-        wifi_pass: document.getElementById('wifi_pass').value,
-        tz_preset: parseInt(document.getElementById('tz_preset').value),
-        tz_custom: document.getElementById('tz_custom').value,
-        zipcode: document.getElementById('zipcode').value,
-        station_id: parseInt(document.getElementById('station_id').value),
-        api_token: document.getElementById('api_token').value,
-        units: parseInt(document.querySelector('input[name="units"]:checked').value),
-        screen_rotation: parseInt(document.getElementById('screen_rotation').value),
-        brightness_day: parseInt(document.getElementById('brightness_day').value),
-        brightness_dim: parseInt(document.getElementById('brightness_dim').value),
-        dim_timeout_s: parseInt(document.getElementById('dim_timeout_s').value),
-        auto_scroll_s: parseInt(document.getElementById('auto_scroll_s').value),
-        night_mode_enabled: document.getElementById('night_mode_enabled').checked,
-        night_start_hour: parseInt(document.getElementById('night_start_hour').value),
-        night_end_hour: parseInt(document.getElementById('night_end_hour').value),
-        brightness_night: parseInt(document.getElementById('brightness_night').value)
-      };
-
-      try {
-        let res = await fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        let resJson = await res.json();
-        if (resJson.status === 'ok') {
-          showBanner("Settings saved and applied successfully!", true);
-          formInitialized = false; // re-sync on next fetch
-          loadTelemetry();
-        } else {
-          showBanner("Failed to save: " + (resJson.message || "Error"), false);
-        }
-      } catch (err) {
-        showBanner("Error communicating with device", false);
-      }
-    });
-
-    async function refreshForecast() {
-      try {
-        let res = await fetch('/api/forecast_refresh', { method: 'POST' });
-        showBanner("Forecast refresh triggered!", true);
-      } catch (e) {
-        showBanner("Failed to trigger refresh", false);
-      }
-    }
-
-    async function restartDevice() {
-      if (!confirm("Are you sure you want to reboot the display?")) return;
-      try {
-        await fetch('/api/restart', { method: 'POST' });
-        showBanner("Device is restarting... Please wait 10 seconds.", true);
-        setTimeout(() => { location.reload(); }, 9000);
-      } catch (e) {
-        showBanner("Reboot triggered.", true);
-      }
-    }
-
-    async function performOTA() {
-      let fileInput = document.getElementById('ota_file');
-      if (!fileInput.files.length) {
-        showBanner("Please select a firmware.bin file to upload", false);
-        return;
-      }
-      let file = fileInput.files[0];
-      if (!confirm("Flash '" + file.name + "' (" + Math.round(file.size/1024) + " KB) over the air?")) return;
-
-      let btn = document.getElementById('btn_ota_upload');
-      let pWrap = document.getElementById('ota_progress_wrap');
-      let pBar = document.getElementById('ota_bar');
-      let pPct = document.getElementById('ota_pct');
-      let pTxt = document.getElementById('ota_status_txt');
-
-      btn.disabled = true;
-      fileInput.disabled = true;
-      pWrap.style.display = 'block';
-
-      let xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/ota_update', true);
-
-      xhr.upload.onprogress = function(e) {
-        if (e.lengthComputable) {
-          let pct = Math.round((e.loaded / e.total) * 100);
-          pBar.style.width = pct + '%';
-          pPct.innerText = pct + '%';
-        }
-      };
-
-      xhr.onload = function() {
-        if (xhr.status === 200) {
-          pBar.style.width = '100%';
-          pPct.innerText = '100%';
-          pTxt.innerText = 'Flash complete! Rebooting into new firmware...';
-          showBanner("OTA Update Successful! Device is rebooting...", true);
-          setTimeout(() => { location.reload(); }, 12000);
-        } else {
-          showBanner("OTA Failed: " + xhr.responseText, false);
-          btn.disabled = false;
-          fileInput.disabled = false;
-        }
-      };
-
-      xhr.onerror = function() {
-        showBanner("Network error during OTA upload", false);
-        btn.disabled = false;
-        fileInput.disabled = false;
-      };
-
-      let formData = new FormData();
-      formData.append('firmware', file, file.name);
-      xhr.send(formData);
-    }
-
-    loadTelemetry();
-    setInterval(loadTelemetry, 4000);
-  </script>
-</body>
-</html>
-)rawliteral";
+extern const char dashboard_html_start[] asm("_binary_src_dashboard_html_start");
+extern const char dashboard_html_end[] asm("_binary_src_dashboard_html_end");
 
 static void handle_root() {
-    s_server.send(200, "text/html", HTML_DASHBOARD);
+    if (!authorized()) return;
+    s_server.send_P(200, "text/html", dashboard_html_start, (size_t)(dashboard_html_end - dashboard_html_start));
 }
 
 static void handle_api_status() {
+    if (!authorized()) return;
     AppSettings s;
     settings_get(&s);
 
@@ -785,24 +105,35 @@ static void handle_api_status() {
     if (now >= 1000000000LL) {
         struct tm ti;
         localtime_r(&now, &ti);
-        strftime(time_str, sizeof(time_str), "%I:%M:%S %p", &ti);
+        weather_format_clock(time_str, sizeof(time_str), ti.tm_hour, ti.tm_min, ti.tm_sec, s.clock_24h, true);
     }
 
     JsonDocument doc;
     JsonObject settings = doc["settings"].to<JsonObject>();
     settings["wifi_ssid"] = s.wifi_ssid[0] ? s.wifi_ssid : WiFi.SSID();
+    settings["wifi_open"] = s.wifi_password[0] == '\0';
     settings["tz_preset"] = s.tz_preset;
     settings["tz_name"] = settings_get_tz_name(s.tz_preset);
     settings["tz_custom"] = s.tz_custom;
-    settings["zipcode"] = s.zipcode;
     settings["station_id"] = s.station_id;
-    settings["api_token"] = s.api_token;
+    settings["api_token_saved"] = s.api_token[0] != '\0';
+    settings["device_serial"] = s.device_serial;
+    settings["rotation_supported"] = true;
+#if defined(BOARD_WAVESHARE_P4_LCD_4C)
+    settings["brightness_min"] = BACKLIGHT_MIN_ON;
+#else
+    settings["brightness_min"] = 0;
+#endif
     settings["units"] = s.units;
+    settings["clock_24h"] = s.clock_24h;
     settings["screen_rotation"] = s.screen_rotation;
     settings["brightness_day"] = s.brightness_day;
     settings["brightness_dim"] = s.brightness_dim;
     settings["dim_timeout_s"] = s.dim_timeout_s;
     settings["auto_scroll_s"] = s.auto_scroll_s;
+    settings["startup_screen"] = s.startup_screen;
+    settings["auto_scroll_mask"] = s.auto_scroll_mask;
+    settings["night_wake_s"] = s.night_wake_s;
     settings["night_mode_enabled"] = s.night_mode_enabled;
     settings["night_start_hour"] = s.night_start_hour;
     settings["night_end_hour"] = s.night_end_hour;
@@ -813,18 +144,164 @@ static void handle_api_status() {
     telemetry["rssi"] = WiFi.RSSI();
     telemetry["local_time"] = time_str;
     telemetry["udp_received"] = wx.udp_connected;
+    telemetry["wifi_connected"] = WiFi.status() == WL_CONNECTED;
+    telemetry["feed"] = tempest_feed_label(wx);
+    uint32_t tick = millis();
+    const WeatherWind reading = weather_wind(wx, tick, now);
+    JsonObject wind = telemetry["wind"].to<JsonObject>();
+    wind["source"] = reading.source;
+    wind["unit"] = wind_unit_str((UnitSystem)s.units);
+    if (reading.received) wind["age_s"] = reading.age_s;
+    else wind["age_s"] = nullptr;
+    if (isfinite(reading.speed_ms)) wind["speed"] = wind_to_unit(reading.speed_ms, (UnitSystem)s.units);
+    else wind["speed"] = nullptr;
+    wind["calm"] = isfinite(reading.speed_ms) && reading.speed_ms < 0.5f;
+    if (reading.direction_valid) wind["direction_deg"] = reading.direction_deg;
+    else wind["direction_deg"] = nullptr;
+    const char *wind_keys[] = {"gust", "lull", "avg"};
+    float wind_values[] = {wx.wind_gust_ms, wx.wind_lull_ms, wx.wind_avg_ms};
+    for (int i = 0; i < 3; ++i) {
+        if (reading.observation_fresh && isfinite(wind_values[i]) && wind_values[i] >= 0)
+            wind[wind_keys[i]] = wind_to_unit(wind_values[i], (UnitSystem)s.units);
+        else wind[wind_keys[i]] = nullptr;
+    }
+    telemetry["firmware_version"] = FW_VERSION;
+    telemetry["board"] = BOARD_NAME;
+    telemetry["chip"] = BOARD_CHIP_NAME;
+    telemetry["reset_reason"] = weather_reset_label(esp_reset_reason());
+    telemetry["heap_free"] = ESP.getFreeHeap();
+    telemetry["heap_min_free"] = ESP.getMinFreeHeap();
+    telemetry["heap_largest_block"] = ESP.getMaxAllocHeap();
+    const WeatherRain rainfall = weather_rain(wx, tick, now);
+    const WeatherEnvironment surroundings = weather_environment(wx, tick, now);
+    JsonObject environment = telemetry["environment"].to<JsonObject>();
+    environment["source"] = surroundings.source;
+    environment["battery_source"] = surroundings.battery_source;
+    if (surroundings.received) environment["age_s"] = surroundings.age_s;
+    else environment["age_s"] = nullptr;
+    if (surroundings.battery_received) environment["battery_age_s"] = surroundings.battery_age_s;
+    else environment["battery_age_s"] = nullptr;
+    if (isfinite(surroundings.uv)) environment["uv"] = surroundings.uv;
+    else environment["uv"] = nullptr;
+    if (isfinite(surroundings.solar)) environment["solar"] = surroundings.solar;
+    else environment["solar"] = nullptr;
+    if (isfinite(surroundings.battery)) environment["battery"] = surroundings.battery;
+    else environment["battery"] = nullptr;
+    JsonObject rain = telemetry["rain"].to<JsonObject>();
+    rain["unit"] = rain_unit_str((UnitSystem)s.units);
+    rain["rate_unit"] = rain_rate_unit_str((UnitSystem)s.units);
+    rain["source"] = rainfall.source;
+    rain["category"] = weather_rain_intensity(rainfall.intensity);
+    rain["complete"] = rainfall.complete;
+    if (rainfall.received) rain["age_s"] = rainfall.age_s;
+    else rain["age_s"] = nullptr;
+    if (isfinite(rainfall.rate_mm_hr)) rain["rate"] = rain_to_unit(rainfall.rate_mm_hr, (UnitSystem)s.units);
+    else rain["rate"] = nullptr;
+    if (isfinite(rainfall.today_mm)) rain["today"] = rain_to_unit(rainfall.today_mm, (UnitSystem)s.units);
+    else rain["today"] = nullptr;
+    if (isfinite(rainfall.yesterday_mm)) rain["yesterday"] = rain_to_unit(rainfall.yesterday_mm, (UnitSystem)s.units);
+    else rain["yesterday"] = nullptr;
+    if (rainfall.probability_pct >= 0) rain["probability_pct"] = rainfall.probability_pct;
+    else rain["probability_pct"] = nullptr;
+    telemetry["uptime_s"] = uint64_t(esp_timer_get_time() / 1000000LL);
+    JsonObject lightning = telemetry["lightning"].to<JsonObject>();
+    if (wx.has_udp_observation) {
+        lightning["count_3h"] = wx.lightning_count_3h;
+        lightning["count_today"] = wx.lightning_count_today;
+    } else {
+        lightning["count_3h"] = nullptr;
+        lightning["count_today"] = nullptr;
+    }
+    lightning["source"] = !wx.has_udp_observation ? "Waiting for sensor observations" :
+        weather_recent(true, tick, wx.last_udp_obs_millis, 90000) ? "Receiving sensor observations" : "Sensor observations stale; counts show received history";
+    lightning["unit"] = dist_unit_str((UnitSystem)s.units);
+    if (isfinite(wx.closest_strike_km) && wx.closest_strike_km >= 0)
+        lightning["closest"] = dist_to_unit(wx.closest_strike_km, (UnitSystem)s.units);
+    else lightning["closest"] = nullptr;
+    lightning["event_received"] = wx.last_strike_epoch > 0;
+    uint32_t strike_age;
+    if (weather_event_age(wx.last_strike_epoch, now, &strike_age)) lightning["last_age_s"] = strike_age;
+    else lightning["last_age_s"] = nullptr;
+    telemetry["clock_synced"] = now >= 1000000000LL;
+    telemetry["screen"] = ui_get_active_screen();
+    const WeatherForecast outlook = weather_forecast(wx, tick);
+    telemetry["forecast_fresh"] = outlook.fresh;
+    JsonObject forecast_json = telemetry["forecast"].to<JsonObject>();
+    forecast_json["source"] = outlook.source;
+    forecast_json["conditions"] = outlook.conditions;
+    forecast_json["unit"] = temp_unit_str((UnitSystem)s.units);
+    if (outlook.received) forecast_json["age_s"] = outlook.age_s;
+    else forecast_json["age_s"] = nullptr;
+    const char *forecast_keys[] = {"high", "low", "feels"};
+    float forecast_values[] = {outlook.high_c, outlook.low_c, outlook.feels_c};
+    for (int i = 0; i < 3; ++i) {
+        if (isfinite(forecast_values[i])) forecast_json[forecast_keys[i]] = temp_to_unit(forecast_values[i], (UnitSystem)s.units);
+        else forecast_json[forecast_keys[i]] = nullptr;
+    }
+    bool configured = s.station_id && s.api_token[0];
+    bool connected = WiFi.status() == WL_CONNECTED;
+    bool clock_ready = now >= 1000000000LL;
+    bool pending = tempest_rest_refresh_pending();
+    JsonObject cloud = telemetry["cloud"].to<JsonObject>();
+    cloud["configured"] = configured;
+    cloud["busy"] = wx.cloud_busy;
+    cloud["pending"] = pending;
+    uint32_t remaining = weather_cloud_remaining(tick, wx.cloud_retry_started, wx.cloud_retry_interval);
+    cloud["cooldown"] = configured && wx.cloud_service_cooldown && remaining > 0;
+    cloud["state"] = !configured ? "Not configured" : !connected ? "Waiting for Wi-Fi" :
+        !clock_ready ? "Waiting for clock" : wx.cloud_busy ? "Refreshing" :
+        pending ? "Refresh queued" : "Waiting for next attempt";
+    cloud["result"] = weather_cloud_result_label(wx.cloud_result);
+    cloud["http_code"] = wx.cloud_http_code;
+    if (wx.cloud_attempted) cloud["attempt_age_s"] = uint32_t(tick - wx.cloud_attempt_millis) / 1000;
+    else cloud["attempt_age_s"] = nullptr;
+    if (configured && connected && clock_ready && !wx.cloud_busy)
+        cloud["retry_in_s"] = pending && !wx.cloud_service_cooldown ? 0 : (remaining + 999) / 1000;
+    else cloud["retry_in_s"] = nullptr;
+    if (wx.has_observation) telemetry["observation_age_s"] = weather_observation_age(wx, tick, now);
+    else telemetry["observation_age_s"] = nullptr;
+    if (wx.has_forecast) telemetry["forecast_age_s"] = uint32_t(tick - wx.last_forecast_millis) / 1000;
+    else telemetry["forecast_age_s"] = nullptr;
+    telemetry["pressure_unit"] = pressure_unit_str((UnitSystem)s.units);
+    JsonArray history = telemetry["pressure_history"].to<JsonArray>();
+    for (int i = 0; i < wx.pressure_hist_count; ++i) {
+        JsonObject point = history.add<JsonObject>();
+        point["value"] = pressure_to_unit(wx.pressure_hist_24h[i], (UnitSystem)s.units);
+        point["epoch"] = wx.pressure_hist_epoch[i];
+    }
+    if (wx.pressure_hist_count) {
+        int64_t sample = wx.pressure_hist_epoch[wx.pressure_hist_count - 1];
+        telemetry["pressure_sample_age_s"] = now > sample ? uint64_t(now - sample) : 0;
+    } else telemetry["pressure_sample_age_s"] = nullptr;
 
-    float t_disp = temp_to_unit(wx.air_temp_c, (UnitSystem)s.units);
+    const WeatherCurrent current = weather_current(wx, tick, now);
+    JsonObject current_json = telemetry["current"].to<JsonObject>();
+    current_json["source"] = current.source;
+    current_json["temperature_unit"] = temp_unit_str((UnitSystem)s.units);
+    current_json["pressure_unit"] = pressure_unit_str((UnitSystem)s.units);
+    if (current.received) current_json["age_s"] = current.age_s;
+    else current_json["age_s"] = nullptr;
+    if (isfinite(current.temperature_c)) current_json["temperature"] = temp_to_unit(current.temperature_c, (UnitSystem)s.units);
+    else current_json["temperature"] = nullptr;
+    if (isfinite(current.humidity_pct)) current_json["humidity_pct"] = current.humidity_pct;
+    else current_json["humidity_pct"] = nullptr;
+    if (isfinite(current.dew_point_c)) current_json["dew_point"] = temp_to_unit(current.dew_point_c, (UnitSystem)s.units);
+    else current_json["dew_point"] = nullptr;
+    if (isfinite(current.pressure_mb)) current_json["pressure"] = pressure_to_unit(current.pressure_mb, (UnitSystem)s.units);
+    else current_json["pressure"] = nullptr;
+    float t_disp = temp_to_unit(current.temperature_c, (UnitSystem)s.units);
     char t_buf[24];
     snprintf(t_buf, sizeof(t_buf), "%.1f %s", t_disp, temp_unit_str((UnitSystem)s.units));
+    if (!isfinite(t_disp)) strlcpy(t_buf, "—", sizeof(t_buf));
     telemetry["temp_display"] = t_buf;
 
-    float p_disp = pressure_to_unit(wx.pressure_mb, (UnitSystem)s.units);
+    float p_disp = pressure_to_unit(current.pressure_mb, (UnitSystem)s.units);
     char p_buf[24];
     snprintf(p_buf, sizeof(p_buf), (s.units == 0 ? "%.2f inHg" : "%.1f mb"), p_disp);
+    if (!isfinite(p_disp)) strlcpy(p_buf, "—", sizeof(p_buf));
     telemetry["press_display"] = p_buf;
 
-    telemetry["conditions"] = wx.conditions_text;
+    telemetry["conditions"] = outlook.conditions;
     telemetry["free_heap"] = ESP.getFreeHeap();
     telemetry["free_psram"] = ESP.getFreePsram();
 
@@ -834,6 +311,7 @@ static void handle_api_status() {
 }
 
 static void handle_api_settings() {
+    if (!authorized()) return;
     if (!s_server.hasArg("plain")) {
         s_server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Missing payload\"}");
         return;
@@ -847,8 +325,14 @@ static void handle_api_settings() {
         return;
     }
 
+    if (!valid_settings_payload(doc)) {
+        s_server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid setting value\"}");
+        return;
+    }
+
     AppSettings s;
     settings_get(&s);
+    AppSettings previous = s;
 
     if (doc["wifi_ssid"].is<const char*>()) {
         const char *new_ssid = doc["wifi_ssid"].as<const char*>();
@@ -864,22 +348,23 @@ static void handle_api_settings() {
             s.wifi_password[sizeof(s.wifi_password) - 1] = '\0';
         }
     }
+    if (doc["wifi_open"] == true) s.wifi_password[0] = '\0';
 
     if (doc["tz_preset"].is<uint8_t>()) s.tz_preset = doc["tz_preset"].as<uint8_t>();
     if (doc["tz_custom"].is<const char*>()) {
         strncpy(s.tz_custom, doc["tz_custom"].as<const char*>(), sizeof(s.tz_custom) - 1);
         s.tz_custom[sizeof(s.tz_custom) - 1] = '\0';
     }
-    if (doc["zipcode"].is<const char*>()) {
-        strncpy(s.zipcode, doc["zipcode"].as<const char*>(), sizeof(s.zipcode) - 1);
-        s.zipcode[sizeof(s.zipcode) - 1] = '\0';
-    }
     if (doc["station_id"].is<uint32_t>()) s.station_id = doc["station_id"].as<uint32_t>();
+    if (doc["device_serial"].is<const char*>()) strlcpy(s.device_serial, doc["device_serial"], sizeof(s.device_serial));
     if (doc["api_token"].is<const char*>()) {
-        strncpy(s.api_token, doc["api_token"].as<const char*>(), sizeof(s.api_token) - 1);
+        if (strlen(doc["api_token"].as<const char*>()) > 0)
+            strncpy(s.api_token, doc["api_token"].as<const char*>(), sizeof(s.api_token) - 1);
         s.api_token[sizeof(s.api_token) - 1] = '\0';
     }
+    if (doc["clear_api_token"] == true) s.api_token[0] = '\0';
     if (doc["units"].is<uint8_t>()) s.units = doc["units"].as<uint8_t>();
+    if (doc["clock_24h"].is<bool>()) s.clock_24h = doc["clock_24h"].as<bool>();
     if (doc["screen_rotation"].is<uint16_t>()) {
         uint16_t new_rot = doc["screen_rotation"].as<uint16_t>();
         if (new_rot != s.screen_rotation) {
@@ -889,26 +374,41 @@ static void handle_api_settings() {
     }
     if (doc["brightness_day"].is<uint8_t>()) {
         s.brightness_day = doc["brightness_day"].as<uint8_t>();
-        display::setBrightness(s.brightness_day);
+        brightness_cancel_preview();
     }
     if (doc["brightness_dim"].is<uint8_t>()) s.brightness_dim = doc["brightness_dim"].as<uint8_t>();
     if (doc["dim_timeout_s"].is<uint16_t>()) s.dim_timeout_s = doc["dim_timeout_s"].as<uint16_t>();
     if (doc["auto_scroll_s"].is<uint16_t>()) s.auto_scroll_s = doc["auto_scroll_s"].as<uint16_t>();
+    if (doc["startup_screen"].is<uint8_t>()) s.startup_screen = doc["startup_screen"].as<uint8_t>();
+    if (doc["auto_scroll_mask"].is<uint8_t>()) s.auto_scroll_mask = doc["auto_scroll_mask"].as<uint8_t>();
+    if (doc["night_wake_s"].is<uint16_t>()) s.night_wake_s = doc["night_wake_s"].as<uint16_t>();
     if (doc["night_mode_enabled"].is<bool>()) s.night_mode_enabled = doc["night_mode_enabled"].as<bool>();
     if (doc["night_start_hour"].is<uint8_t>()) s.night_start_hour = doc["night_start_hour"].as<uint8_t>();
     if (doc["night_end_hour"].is<uint8_t>()) s.night_end_hour = doc["night_end_hour"].as<uint8_t>();
     if (doc["brightness_night"].is<uint8_t>()) s.brightness_night = doc["brightness_night"].as<uint8_t>();
 
-    // Save to NVS
-    settings_save(&s);
+    if (!settings_save(&s)) {
+        s_server.send(500, "application/json", "{\"status\":\"error\",\"message\":\"Settings could not be saved\"}");
+        return;
+    }
+    bool wifi_changed = strcmp(previous.wifi_ssid, s.wifi_ssid) || strcmp(previous.wifi_password, s.wifi_password);
+    if (wifi_changed) {
+        s_wifi_change_pending = true;
+        s_wifi_change_ms = millis();
+    }
+    if (previous.station_id != s.station_id || strcmp(previous.device_serial, s.device_serial)) {
+        tempest_state_init();
+        tempest_set_units((UnitSystem)s.units);
+    }
 
     // Trigger forecast fetch if station ID or API token changed
-    tempest_rest_trigger_now();
+    if (previous.station_id != s.station_id || strcmp(previous.api_token, s.api_token)) tempest_rest_trigger_now();
 
-    s_server.send(200, "application/json", "{\"status\":\"ok\"}");
+    s_server.send(200, "application/json", wifi_changed ? "{\"status\":\"ok\",\"wifi_reconnecting\":true}" : "{\"status\":\"ok\"}");
 }
 
 static void handle_api_live() {
+    if (!authorized()) return;
     if (!s_server.hasArg("plain")) {
         s_server.send(400, "application/json", "{\"error\":\"missing body\"}");
         return;
@@ -920,6 +420,10 @@ static void handle_api_live() {
         s_server.send(400, "application/json", "{\"error\":\"bad json\"}");
         return;
     }
+    if (!valid_settings_payload(doc)) {
+        s_server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid setting value\"}");
+        return;
+    }
 
     AppSettings s;
     settings_get(&s);
@@ -929,13 +433,16 @@ static void handle_api_live() {
     if (doc["brightness_day"].is<uint8_t>()) {
         uint8_t b = doc["brightness_day"].as<uint8_t>();
         s.brightness_day = b;
-        display::setBrightness(b);
+        if (need_save) brightness_cancel_preview();
+        else brightness_preview(b);
     }
+    if (doc["brightness_dim"].is<uint8_t>()) s.brightness_dim = doc["brightness_dim"].as<uint8_t>();
+    if (doc["preview_cancel"] == true) brightness_cancel_preview();
 
     // Live Preview Dim (temporary brightness preview)
     if (doc["preview_dim"].is<uint8_t>()) {
         uint8_t b = doc["preview_dim"].as<uint8_t>();
-        display::setBrightness(b);
+        brightness_preview(b);
     }
 
     // Live Screen Rotation
@@ -948,12 +455,16 @@ static void handle_api_live() {
     }
 
     // Live Units
+    if (doc["clock_24h"].is<bool>()) s.clock_24h = doc["clock_24h"].as<bool>();
     if (doc["units"].is<uint8_t>()) {
         s.units = doc["units"].as<uint8_t>();
         tempest_set_units((UnitSystem)s.units);
     }
 
     // Live Auto-Scroll
+    if (doc["startup_screen"].is<uint8_t>()) s.startup_screen = doc["startup_screen"].as<uint8_t>();
+    if (doc["auto_scroll_mask"].is<uint8_t>()) s.auto_scroll_mask = doc["auto_scroll_mask"].as<uint8_t>();
+    if (doc["night_wake_s"].is<uint16_t>()) s.night_wake_s = doc["night_wake_s"].as<uint16_t>();
     if (doc["auto_scroll_s"].is<uint16_t>()) {
         s.auto_scroll_s = doc["auto_scroll_s"].as<uint16_t>();
     }
@@ -969,16 +480,27 @@ static void handle_api_live() {
         need_save = true;
     }
 
-    if (need_save) {
-        settings_save(&s);
+    if (need_save && !settings_save(&s)) {
+        s_server.send(500, "application/json", "{\"status\":\"error\",\"message\":\"Settings could not be saved\"}");
+        return;
     }
 
     s_server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 static void handle_api_wifi_scan() {
+    if (!authorized()) return;
     Serial.println("[web] Scanning available Wi-Fi networks...");
-    int16_t n = WiFi.scanNetworks(false, false);
+    int16_t n = WiFi.scanComplete();
+    if (n == WIFI_SCAN_FAILED) {
+        WiFi.scanNetworks(true, false);
+        s_server.send(202, "application/json", "{\"status\":\"scanning\"}");
+        return;
+    }
+    if (n == WIFI_SCAN_RUNNING) {
+        s_server.send(202, "application/json", "{\"status\":\"scanning\"}");
+        return;
+    }
     JsonDocument doc;
     JsonArray arr = doc["networks"].to<JsonArray>();
 
@@ -1005,8 +527,8 @@ static void handle_api_wifi_scan() {
                 item["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
             }
         }
-        WiFi.scanDelete();
     }
+    WiFi.scanDelete();
 
     String out;
     serializeJson(doc, out);
@@ -1014,13 +536,20 @@ static void handle_api_wifi_scan() {
 }
 
 static void handle_api_forecast_refresh() {
+    if (!authorized()) return;
     tempest_rest_trigger_now();
     s_server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 static void handle_view() {
+    if (!authorized()) return;
     if (s_server.hasArg("i")) {
-        int idx = s_server.arg("i").toInt();
+        String value = s_server.arg("i");
+        if (value.length() != 1 || value[0] < '0' || value[0] > '4') {
+            s_server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid screen\"}");
+            return;
+        }
+        int idx = value[0] - '0';
         ui_set_screen(idx);
         s_server.send(200, "application/json", "{\"status\":\"ok\"}");
     } else {
@@ -1029,6 +558,7 @@ static void handle_view() {
 }
 
 static void handle_shot_bmp() {
+    if (!authorized()) return;
     const uint16_t *fb = display::captureFrame();
     if (!fb) {
         s_server.send(503, "text/plain", "Capture buffer unavailable");
@@ -1055,16 +585,25 @@ static void handle_shot_bmp() {
     hdr[28] = 24;
     hdr[34] = image_size & 0xFF; hdr[35] = (image_size >> 8) & 0xFF; hdr[36] = (image_size >> 16) & 0xFF; hdr[37] = (image_size >> 24) & 0xFF;
 
+    const size_t pixels = (size_t)w * h;
+    uint16_t *frame = (uint16_t *)heap_caps_malloc(pixels * sizeof(uint16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!frame) frame = (uint16_t *)heap_caps_malloc(pixels * sizeof(uint16_t), MALLOC_CAP_8BIT);
+    uint8_t *row_buf = frame ? (uint8_t *)heap_caps_malloc(row_bytes + pad, MALLOC_CAP_8BIT) : nullptr;
+    if (!frame || !row_buf) {
+        heap_caps_free(frame);
+        heap_caps_free(row_buf);
+        s_server.send(503, "text/plain", "Capture buffer unavailable");
+        return;
+    }
+    memcpy(frame, fb, pixels * sizeof(uint16_t));
+    memset(row_buf, 0, row_bytes + pad);
     s_server.setContentLength(file_size);
     s_server.send(200, "image/bmp", "");
 
     client.write(hdr, 54);
 
-    uint8_t row_buf[SCREEN_W * 3 + 4];
-    memset(row_buf, 0, sizeof(row_buf));
-
     for (int y = (int)h - 1; y >= 0; --y) {
-        const uint16_t *src_row = &fb[y * w];
+        const uint16_t *src_row = &frame[y * w];
         uint8_t *dst = row_buf;
         for (uint32_t x = 0; x < w; ++x) {
             uint16_t c = src_row[x];
@@ -1076,19 +615,67 @@ static void handle_shot_bmp() {
             *dst++ = r;
         }
         client.write(row_buf, row_bytes + pad);
+        if (((int)h - y) % 16 == 0) delay(0);
     }
+    heap_caps_free(row_buf);
+    heap_caps_free(frame);
 }
 
 static void handle_api_restart() {
+    if (!authorized()) return;
     s_server.send(200, "application/json", "{\"status\":\"restarting\"}");
     delay(500);
     ESP.restart();
 }
 
+static void ota_reset() {
+    s_ota_started = s_ota_complete = s_ota_armed = s_ota_rejected = false;
+    s_ota_header_ok = s_ota_marked = false;
+    s_ota_prefix_len = s_ota_tail_len = 0;
+}
+
+static void ota_write(const uint8_t *data, size_t len) {
+    if (!s_ota_armed || s_ota_rejected || !data || !len) return;
+    if (!s_ota_header_ok) {
+        size_t take = len < (112 - s_ota_prefix_len) ? len : (112 - s_ota_prefix_len);
+        memcpy(s_ota_prefix + s_ota_prefix_len, data, take);
+        s_ota_prefix_len += take;
+        data += take;
+        len -= take;
+        if (s_ota_prefix_len < 112) return;
+        if (!ota_image_acceptable(s_ota_prefix, 112, ota_expected_chip(), ota_expected_project())) {
+            s_ota_rejected = true;
+            Serial.println("[ota] Rejected image: chip or project does not match this display");
+            return;
+        }
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+            Update.printError(Serial);
+            s_ota_rejected = true;
+            return;
+        }
+        s_ota_started = s_ota_header_ok = true;
+        if (Update.write(s_ota_prefix, 112) != 112) {
+            Update.printError(Serial);
+            s_ota_rejected = true;
+            return;
+        }
+        if (ota_note_marker(s_ota_tail, &s_ota_tail_len, s_ota_prefix, 112)) s_ota_marked = true;
+    }
+    if (len && Update.write((uint8_t *)data, len) != len) {
+        Update.printError(Serial);
+        s_ota_rejected = true;
+        return;
+    }
+    if (len && ota_note_marker(s_ota_tail, &s_ota_tail_len, data, len)) s_ota_marked = true;
+}
+
 static void handle_ota_finish() {
-    bool ok = !Update.hasError();
+    if (!authorized()) return;
+    bool ok = s_ota_complete && !Update.hasError();
     if (ok) {
         s_server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Update success. Rebooting...\"}");
+    } else if (s_ota_rejected) {
+        s_server.send(500, "application/json", "{\"status\":\"error\",\"message\":\"Firmware does not match this display\"}");
     } else {
         char err_msg[64];
         snprintf(err_msg, sizeof(err_msg), "Update failed (Error #%u)", Update.getError());
@@ -1101,38 +688,48 @@ static void handle_ota_finish() {
 static void handle_ota_upload() {
     HTTPUpload& upload = s_server.upload();
     if (upload.status == UPLOAD_FILE_START) {
+        ota_reset();
+        if (!authorized(false)) return;
+        s_ota_armed = true;
         Serial.printf("[ota] Receiving update file: '%s'\n", upload.filename.c_str());
-        // Command update to write to next OTA partition
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-            Update.printError(Serial);
-        }
     } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-            Update.printError(Serial);
-        }
+        ota_write(upload.buf, upload.currentSize);
     } else if (upload.status == UPLOAD_FILE_END) {
+        if (!s_ota_armed) return;
+        if (!s_ota_header_ok || s_ota_rejected || !s_ota_marked) {
+            if (s_ota_started) Update.abort();
+            s_ota_started = s_ota_complete = false;
+            s_ota_rejected = true;
+            Serial.println("[ota] Update rejected before it was committed");
+            return;
+        }
         if (Update.end(true)) {
+            s_ota_complete = true;
             Serial.printf("[ota] Update successfully flashed: %u bytes written!\n", upload.totalSize);
         } else {
             Update.printError(Serial);
         }
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
-        Update.end();
+        if (s_ota_started) Update.abort();
+        s_ota_started = s_ota_complete = false;
         Serial.println("[ota] Update aborted by client");
     }
 }
 
-void web_config_server_begin() {
-    if (s_server_started) return;
-
+void web_config_server_network_changed() {
     // Start mDNS service responder: http://weather.local
     MDNS.end();
-    if (MDNS.begin(MDNS_HOSTNAME)) {
+    if (WiFi.status() == WL_CONNECTED && MDNS.begin(MDNS_HOSTNAME)) {
         MDNS.setInstanceName("Weather Station Display");
         MDNS.addService("http", "tcp", 80);
         MDNS.addServiceTxt("http", "tcp", "path", "/");
         Serial.printf("[web] mDNS responder started: http://%s.local\n", MDNS_HOSTNAME);
     }
+}
+
+void web_config_server_begin() {
+    if (s_server_started) return;
+    web_config_server_network_changed();
 
     s_server.on("/", HTTP_GET, handle_root);
     s_server.on("/api/status", HTTP_GET, handle_api_status);
@@ -1144,22 +741,31 @@ void web_config_server_begin() {
     s_server.on("/api/ota_update", HTTP_POST, handle_ota_finish, handle_ota_upload);
     s_server.on("/shot.bmp", HTTP_GET, handle_shot_bmp);
     s_server.on("/view", HTTP_GET, handle_view);
+    s_server.on("/view", HTTP_POST, handle_view);
 
-    // Captive Portal Detection endpoints (iOS, Android, Windows)
-    s_server.on("/hotspot-detect.html", HTTP_GET, handle_root);      // Apple
-    s_server.on("/canonical.html", HTTP_GET, handle_root);           // Android
-    s_server.on("/generate_204", HTTP_GET, handle_root);             // Android
-    s_server.on("/gen_204", HTTP_GET, handle_root);                  // Android
-    s_server.on("/ncsi.txt", HTTP_GET, []() {                        // Windows
+    auto captive_root = []() {
+        if (!s_setup_ap) { s_server.send(404, "text/plain", "Not found"); return; }
+        handle_root();
+    };
+    s_server.on("/hotspot-detect.html", HTTP_GET, captive_root);
+    s_server.on("/canonical.html", HTTP_GET, captive_root);
+    s_server.on("/generate_204", HTTP_GET, captive_root);
+    s_server.on("/gen_204", HTTP_GET, captive_root);
+    s_server.on("/ncsi.txt", HTTP_GET, []() {
+        if (!s_setup_ap) { s_server.send(404, "text/plain", "Not found"); return; }
         s_server.send(200, "text/plain", "Microsoft NCSI");
     });
     s_server.onNotFound([]() {
-        // Redirect any unknown captive check to root
+        if (!s_setup_ap) {
+            s_server.send(404, "text/plain", "Not found");
+            return;
+        }
         s_server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
         s_server.send(302, "text/plain", "");
     });
 
-    s_server.enableCORS(true);
+    const char *headers[] = {"Origin"};
+    s_server.collectHeaders(headers, 1);
     s_server.begin();
     s_server_started = true;
 
@@ -1171,4 +777,14 @@ void web_config_server_loop() {
     if (s_server_started) {
         s_server.handleClient();
     }
+    if (s_wifi_change_pending && uint32_t(millis() - s_wifi_change_ms) >= 750) {
+        s_wifi_change_pending = false;
+        AppSettings s;
+        settings_get(&s);
+        WiFi.disconnect(false, false);
+        WiFi.begin(s.wifi_ssid, s.wifi_password);
+        network_credentials_changed();
+    }
 }
+
+void web_config_server_set_setup_ap(bool up) { s_setup_ap = up; }

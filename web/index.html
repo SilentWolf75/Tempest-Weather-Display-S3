@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tempest Weather Display S3 — Web Installer</title>
+<title>Tempest Weather Display S3 &amp; P4 — Web Installer</title>
 <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
 <style>
   :root {
@@ -235,9 +235,9 @@
   </div>
 
   <div class="status-badge"><div class="status-dot"></div> Web Flasher Ready</div>
-  <h1>Tempest <span>Weather Display S3</span></h1>
+  <h1>Tempest <span>Weather Display S3 &amp; P4</span></h1>
   <div class="sub">
-    High-end standalone weather console for the <b>Waveshare ESP32-S3-Touch-AMOLED-1.75</b> circular display.
+    A standalone weather console for the <b>Waveshare S3 1.75&quot; AMOLED</b> and <b>P4 4&quot; LCD</b> circular displays.
     Direct LAN UDP listening &amp; Cloud REST failover for WeatherFlow Tempest stations.
   </div>
 
@@ -245,11 +245,11 @@
   <div class="card" style="text-align:center;">
     <div class="card-title" style="justify-content:center;">⚡ 1-Click Browser Installer</div>
     <p style="margin:0 0 16px; font-size:14px; color:var(--soft);">
-      Flash your ESP32-S3 board directly from Google Chrome or Microsoft Edge via Web Serial — no PlatformIO or command line required!
+      Flash your supported Waveshare S3 AMOLED or P4 LCD board from Google Chrome or Microsoft Edge. The installer selects firmware for the connected chip.
     </p>
 
     <esp-web-install-button manifest="manifest.json">
-      <button slot="activate">⚡ Install Firmware (v1.0.0)</button>
+      <button slot="activate">⚡ Install Firmware <span id="install_version"></span></button>
       <span slot="unsupported">Use Chrome or Edge on desktop (Web Serial is required).</span>
       <span slot="not-allowed">Web Serial requires HTTPS.</span>
     </esp-web-install-button>
@@ -263,12 +263,12 @@
   <div class="card">
     <div class="card-title">📖 Quick Setup Steps</div>
     <ol>
-      <li>Connect the Waveshare ESP32-S3 AMOLED board to your computer using a <b>USB-C data cable</b>.</li>
+      <li>Connect your supported Waveshare S3 AMOLED or P4 LCD board with a <b>USB-C data cable</b>.</li>
       <li>Click <b>Install Firmware</b> above and choose the <code>USB JTAG/serial</code> or <code>USB Serial</code> port in the browser popup.</li>
       <li>For a first-time flash, check <b>Erase device</b> to ensure a clean partition setup.</li>
       <li>Once the flash completes, the device will reboot and broadcast a setup Wi-Fi hotspot: <b><code>Weather-Display-Setup</code></b>.</li>
-      <li>Connect your phone or laptop to <b><code>Weather-Display-Setup</code></b> and open <b><code>http://192.168.4.1/</code></b> to select your Wi-Fi network and save your Tempest Station ID.</li>
-      <li>After connecting to your Wi-Fi, open the live web dashboard at <b><a href="http://weather.local/" target="_blank">http://weather.local/</a></b> to configure real-time brightness, auto-dim timeouts, rotation, and units!</li>
+      <li>Join <b><code>Weather-Display-Setup</code></b> using the <b>Setup key</b> shown on the display. Open <b><code>http://192.168.4.1/</code></b>, sign in as <b>admin</b> with that same key, and save your Wi-Fi network.</li>
+      <li>After connection, open <b><a href="http://weather.local/" target="_blank">http://weather.local/</a></b> to enter your Tempest Station ID and API token, and adjust display settings. Both boards rotate in 90° steps. The P4 applies that rotation in software, and its natural orientation is 0°.</li>
     </ol>
 
     <div class="note-box" style="margin-top:16px;">
@@ -290,11 +290,11 @@
       </div>
       <div class="feat-item">
         <b>Live Web Settings</b>
-        Real-time brightness, dim preview, auto-scroll, Wi-Fi network scanner, and live rotation.
+        Brightness, dim preview, auto-scroll, network scanning, and rotation on both boards, with confirmed saves.
       </div>
       <div class="feat-item">
-        <b>4-Screen AMOLED UI</b>
-        Conditions, 360° wind gauge, lightning strike radar, and network/system diagnostics.
+        <b>5-Screen Weather UI</b>
+        Conditions, wind, rain, lightning, and system info.
       </div>
     </div>
   </div>
@@ -303,7 +303,7 @@
   <div class="card" style="max-width: 580px;">
     <div class="card-title">📸 Live Firmware on AMOLED (466×466)</div>
     <p style="color:var(--soft); font-size:13px; margin:0 0 16px;">
-      Direct framebuffer captures from the Waveshare 1.75" round AMOLED display:
+      Framebuffer captures from an earlier S3 release; current firmware adds source/freshness labels and distance-only lightning rings.
     </p>
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:14px; text-align:center;">
       <div style="background:#141f33; padding:12px; border-radius:12px; border:1px solid var(--border);">
@@ -340,6 +340,12 @@
   </div>
 
   <script>
+    fetch('version.json').then(res => {
+      if (!res.ok) throw new Error('Version unavailable');
+      return res.json();
+    }).then(data => {
+      document.getElementById('install_version').textContent = '(v' + data.version + ')';
+    }).catch(() => {});
     function switchPreview(img, btn) {
       document.getElementById('screen_preview').src = 'img/screens/' + img + '?v=103';
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));

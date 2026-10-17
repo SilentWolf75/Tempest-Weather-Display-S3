@@ -6,6 +6,7 @@
 #include "screen_info.h"
 #include "tempest_state.h"
 #include "config.h"
+#include "weather_policy.h"
 #include <lvgl.h>
 #include <Arduino.h>
 
@@ -18,6 +19,11 @@ static lv_obj_t *s_tile4 = nullptr;
 
 static lv_obj_t *s_dot[5] = { nullptr, nullptr, nullptr, nullptr, nullptr };
 static int s_active_page = 0;
+
+static void dot_click_cb(lv_event_t *e) {
+    int page = int(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
+    ui_set_screen(page);
+}
 
 static void update_dots(int active) {
     s_active_page = active;
@@ -70,13 +76,21 @@ void ui_init() {
 
     // Page indicator dots pinned on top layer
     lv_obj_t *top_layer = lv_layer_top();
-    const int dot_x[5] = { UI_S(-40), UI_S(-20), 0, UI_S(20), UI_S(40) };
+    const int dot_x[5] = { UI_S(-64), UI_S(-32), 0, UI_S(32), UI_S(64) };
     for (int i = 0; i < 5; ++i) {
-        s_dot[i] = lv_obj_create(top_layer);
+        lv_obj_t *target = lv_obj_create(top_layer);
+        lv_obj_remove_style_all(target);
+        lv_obj_set_size(target, UI_S(30), UI_S(30));
+        lv_obj_align(target, LV_ALIGN_BOTTOM_MID, dot_x[i], UI_S(-6));
+        lv_obj_clear_flag(target, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(target, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(target, dot_click_cb, LV_EVENT_CLICKED,
+                            reinterpret_cast<void*>(intptr_t(i)));
+        s_dot[i] = lv_obj_create(target);
         lv_obj_remove_style_all(s_dot[i]);
         lv_obj_set_size(s_dot[i], UI_S(6), UI_S(6));
         lv_obj_set_style_radius(s_dot[i], LV_RADIUS_CIRCLE, 0);
-        lv_obj_align(s_dot[i], LV_ALIGN_BOTTOM_MID, dot_x[i], UI_S(-18));
+        lv_obj_center(s_dot[i]);
         lv_obj_clear_flag(s_dot[i], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     }
     update_dots(0);
@@ -111,15 +125,17 @@ void ui_set_screen(int idx) {
     ui_pause_autoscroll(10000);
 }
 
-void ui_next_screen() {
+void ui_next_screen(uint8_t mask) {
     if (!s_tv) return;
-    if (millis() < s_pause_scroll_until) return;
+    if (int32_t(millis() - s_pause_scroll_until) < 0) return;
     // Don't auto-scroll while viewing the Info screen (screen 4)
     if (s_active_page >= 4) return;
 
     // Cycle only between the 4 main weather screens (0: Main, 1: Wind, 2: Rain, 3: Lightning)
-    int next_page = (s_active_page + 1) % 4;
-    ui_set_screen(next_page);
+    int next_page = weather_next_screen(s_active_page, mask);
+    if (next_page == s_active_page) return;
+    lv_obj_set_tile_id(s_tv, next_page, 0, LV_ANIM_ON);
+    update_dots(next_page);
 }
 
 int ui_get_active_screen() {

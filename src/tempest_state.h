@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "config.h"
+#include "weather_cloud_policy.h"
 
 struct TempestState {
     // Live observations (SI units internally)
@@ -18,6 +19,7 @@ struct TempestState {
     float    rapid_wind_ms;
     int      rapid_wind_dir;
     int64_t  rapid_wind_epoch;
+    uint32_t rapid_wind_millis;
 
     // Solar & rain
     float    uv_index;
@@ -40,9 +42,20 @@ struct TempestState {
 
     // Battery & connection status
     float    battery_v;
+    int64_t  battery_epoch;
+    uint32_t battery_millis;
+    bool     has_battery;
     int64_t  last_obs_epoch;
     uint32_t last_packet_millis;
     bool     udp_connected;
+    bool     has_observation;
+    bool     observation_from_udp;
+    bool     has_udp_observation;
+    uint32_t last_udp_obs_millis;
+    uint32_t last_obs_millis;
+    bool     rain_today_complete;
+    bool     pressure_trend_valid;
+    float    closest_strike_km;
 
     // REST Forecast data
     char     conditions_text[48];
@@ -51,9 +64,20 @@ struct TempestState {
     float    temp_low_c;
     float    feels_like_c;
     bool     rest_connected;
+    bool     has_forecast;
+    uint32_t last_forecast_millis;
+    bool     cloud_attempted;
+    bool     cloud_busy;
+    CloudResult cloud_result;
+    int      cloud_http_code;
+    uint32_t cloud_attempt_millis;
+    uint32_t cloud_retry_started;
+    uint32_t cloud_retry_interval;
+    bool     cloud_service_cooldown;
 
     // 24-Hour Pressure History (48 samples, 1 every 30 mins)
     float    pressure_hist_24h[48];
+    int64_t  pressure_hist_epoch[48];
     int      pressure_hist_count;
 
     // Computed & peak metrics
@@ -74,16 +98,21 @@ struct TempestState {
 };
 
 void tempest_state_init();
+void tempest_state_tick();
+void tempest_cloud_attempt();
+void tempest_cloud_finish(CloudResult result, int http_code, uint32_t retry_interval, bool service_cooldown = false);
+const char *tempest_feed_label(const TempestState &state);
 void tempest_get_state(TempestState *dest);
 int  tempest_get_pressure_history(float *dest_buf, int max_samples);
 
 void tempest_update_obs(float temp_c, float humidity, float pressure,
                         float wind_avg, float wind_gust, float wind_lull, int wind_dir,
                         float uv, float solar, float rain_min, int precip_type,
-                        float strike_dist, int strike_cnt, float battery, int64_t epoch);
+                        float strike_dist, int strike_cnt, float battery, int64_t epoch,
+                        bool from_udp = true);
 
 void tempest_update_precip_event(int64_t epoch);
-void tempest_update_rain_totals(float today_mm, float yesterday_mm, int prob_pct);
+void tempest_update_rain_totals(float today_mm, float yesterday_mm, int prob_pct, int64_t epoch);
 
 void tempest_update_rapid_wind(float speed_ms, int dir_deg, int64_t epoch);
 void tempest_update_strike(float dist_km, uint32_t energy, int64_t epoch);

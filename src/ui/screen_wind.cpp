@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include <stdio.h>
 #include <math.h>
+#include "weather_policy.h"
+#include "weather_wind.h"
+#include <time.h>
 
 #if SCREEN_W >= 600
 LV_FONT_DECLARE(montserrat_96_digits);
@@ -32,6 +35,8 @@ static lv_obj_t *s_unit_lbl = nullptr;
 static lv_obj_t *s_dir_lbl = nullptr;
 static lv_obj_t *s_beaufort_lbl = nullptr;
 static lv_obj_t *s_stats_lbl = nullptr;
+static lv_obj_t *s_source_lbl = nullptr;
+static bool s_direction_valid = false;
 
 static float s_current_angle = 0.0f;
 static float s_target_angle = 0.0f;
@@ -137,6 +142,7 @@ static void compass_draw_cb(lv_event_t *e) {
     }
 
     // Rotating Needle: points to wind origin direction
+    if (!s_direction_valid) return;
     float needle_rad = s_current_angle * (float)M_PI / 180.0f;
     float ux = sinf(needle_rad);
     float uy = -cosf(needle_rad);
@@ -259,7 +265,7 @@ lv_obj_t* screen_wind_create(lv_obj_t *parent) {
     s_speed_lbl = lv_label_create(s_panel);
     lv_obj_set_style_text_font(s_speed_lbl, &WIND_DIGITS_FONT, 0);
     lv_obj_set_style_text_color(s_speed_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_speed_lbl, "0");
+    lv_label_set_text(s_speed_lbl, "--");
     lv_obj_align(s_speed_lbl, LV_ALIGN_CENTER, 0, UI_S(-32));
 
     // Units label (y = 230)
@@ -273,14 +279,14 @@ lv_obj_t* screen_wind_create(lv_obj_t *parent) {
     s_dir_lbl = lv_label_create(s_panel);
     lv_obj_set_style_text_font(s_dir_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_28 : &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(s_dir_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_dir_lbl, "NNW  338");
+    lv_label_set_text(s_dir_lbl, "Waiting for wind");
     lv_obj_align(s_dir_lbl, LV_ALIGN_CENTER, 0, UI_S(42));
 
     // Beaufort Scale Description (y = 295)
     s_beaufort_lbl = lv_label_create(s_panel);
     lv_obj_set_style_text_font(s_beaufort_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(s_beaufort_lbl, COL_AMBER, 0);
-    lv_label_set_text(s_beaufort_lbl, "Calm");
+    lv_label_set_text(s_beaufort_lbl, "--");
     lv_obj_align(s_beaufort_lbl, LV_ALIGN_CENTER, 0, UI_S(68));
 
     // Gust / Lull / Avg Stats (y = 330)
@@ -288,8 +294,14 @@ lv_obj_t* screen_wind_create(lv_obj_t *parent) {
     lv_obj_set_style_text_font(s_stats_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(s_stats_lbl, COL_TEXT_SOFT, 0);
     lv_obj_set_style_text_align(s_stats_lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_stats_lbl, "Gust: 0  |  Lull: 0  |  Avg: 0");
+    lv_label_set_text(s_stats_lbl, "Gust: -- | Lull: -- | Avg: --");
     lv_obj_align(s_stats_lbl, LV_ALIGN_CENTER, 0, UI_S(98));
+
+    s_source_lbl = lv_label_create(s_panel);
+    lv_obj_set_style_text_font(s_source_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(s_source_lbl, COL_TEXT_SOFT, 0);
+    lv_label_set_text(s_source_lbl, "Waiting for wind");
+    lv_obj_align(s_source_lbl, LV_ALIGN_CENTER, 0, UI_S(125));
 
     // 33ms timer for needle smoothing
     lv_timer_create(wind_timer_cb, 33, nullptr);
@@ -300,45 +312,45 @@ lv_obj_t* screen_wind_create(lv_obj_t *parent) {
 void screen_wind_update(const TempestState &state) {
     if (!s_panel) return;
 
-    // Use rapid wind if recent (< 8 seconds), otherwise average wind
-    float live_speed = state.rapid_wind_ms;
-    int live_dir = state.rapid_wind_dir;
-
-    if (millis() - state.last_packet_millis > 8000) {
-        live_speed = state.wind_avg_ms;
-        live_dir = state.wind_dir_deg;
-    }
-
-    s_target_angle = (float)live_dir;
-
-    float speed_disp = wind_to_unit(live_speed, state.units);
+    const WeatherWind wind = weather_wind(state, millis(), time(nullptr));
+    float live_speed = wind.speed_ms;
+    int live_dir = wind.direction_deg;
+    s_direction_valid = wind.direction_valid;
+    if (s_direction_valid) s_target_angle = (float)live_dir;
     char spd_buf[16];
-    snprintf(spd_buf, sizeof(spd_buf), "%.0f", roundf(speed_disp));
+    weather_format_wind(spd_buf, sizeof(spd_buf), live_speed, state.units);
     lv_label_set_text(s_speed_lbl, spd_buf);
 
     lv_label_set_text(s_unit_lbl, wind_unit_str(state.units));
 
     char dir_buf[32];
     snprintf(dir_buf, sizeof(dir_buf), "%s  %d deg", wind_cardinal(live_dir), live_dir);
+    if (!s_direction_valid) snprintf(dir_buf, sizeof(dir_buf), "%s", !isfinite(live_speed) ? "Direction unavailable" : live_speed < 0.5f ? "Calm" : "Direction unavailable");
     lv_label_set_text(s_dir_lbl, dir_buf);
 
     if (s_beaufort_lbl) {
-        lv_label_set_text(s_beaufort_lbl, get_beaufort_str(live_speed));
+        lv_label_set_text(s_beaufort_lbl, isfinite(live_speed) ? get_beaufort_str(live_speed) : "--");
     }
 
-    if (state.peak_gust_epoch > 0) {
+    if (isfinite(live_speed) && state.peak_gust_epoch > 0) {
         s_peak_gust_angle = (float)state.peak_gust_dir;
     } else {
         s_peak_gust_angle = -1.0f;
     }
 
-    float gust_disp = wind_to_unit(state.wind_gust_ms, state.units);
-    float lull_disp = wind_to_unit(state.wind_lull_ms, state.units);
-    float avg_disp  = wind_to_unit(state.wind_avg_ms, state.units);
+    char gust[16], lull[16], avg[16];
+    weather_format_wind(gust, sizeof(gust), wind.observation_fresh ? state.wind_gust_ms : NAN, state.units);
+    weather_format_wind(lull, sizeof(lull), wind.observation_fresh ? state.wind_lull_ms : NAN, state.units);
+    weather_format_wind(avg, sizeof(avg), wind.observation_fresh ? state.wind_avg_ms : NAN, state.units);
     const char *u_str = wind_unit_str(state.units);
 
     char stats_buf[64];
-    snprintf(stats_buf, sizeof(stats_buf), "Gust: %.0f %s | Lull: %.0f | Avg: %.0f",
-             roundf(gust_disp), u_str, roundf(lull_disp), roundf(avg_disp));
+    snprintf(stats_buf, sizeof(stats_buf), "Gust: %s %s | Lull: %s | Avg: %s", gust, u_str, lull, avg);
     lv_label_set_text(s_stats_lbl, stats_buf);
+    char age[24], source[64];
+    weather_format_age(age, sizeof(age), wind.received, wind.age_s);
+    if (wind.received) snprintf(source, sizeof(source), "%s | %s", wind.source, age);
+    else snprintf(source, sizeof(source), "%s", wind.source);
+    lv_label_set_text(s_source_lbl, source);
+    if (s_compass_canvas) lv_obj_invalidate(s_compass_canvas);
 }

@@ -1,5 +1,6 @@
 #include "screen_rain.h"
 #include "config.h"
+#include "weather_rain.h"
 #include <Arduino.h>
 #include <stdio.h>
 #include <math.h>
@@ -93,7 +94,7 @@ lv_obj_t* screen_rain_create(lv_obj_t *parent) {
     s_badge_lbl = lv_label_create(s_badge);
     lv_obj_set_style_text_font(s_badge_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_badge_lbl, COL_TEXT_SOFT, 0);
-    lv_label_set_text(s_badge_lbl, "NO RAIN DETECTED");
+    lv_label_set_text(s_badge_lbl, "WAITING FOR RAIN DATA");
     lv_obj_align(s_badge_lbl, LV_ALIGN_CENTER, 0, 0);
 
     // Rain Rate Arc Gauge (centered at y = -32)
@@ -122,7 +123,7 @@ lv_obj_t* screen_rain_create(lv_obj_t *parent) {
     s_accum_val_lbl = lv_label_create(s_panel);
     lv_obj_set_style_text_font(s_accum_val_lbl, &RAIN_DIGITS_FONT, 0);
     lv_obj_set_style_text_color(s_accum_val_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_accum_val_lbl, "0.00");
+    lv_label_set_text(s_accum_val_lbl, "--");
     lv_obj_align(s_accum_val_lbl, LV_ALIGN_CENTER, UI_S(-16), UI_S(-26));
 
     // Hero Unit ("in" / "mm")
@@ -160,13 +161,13 @@ lv_obj_t* screen_rain_create(lv_obj_t *parent) {
     s_rate_val_lbl = lv_label_create(card_rate);
     lv_obj_set_style_text_font(s_rate_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(s_rate_val_lbl, COL_TEXT_MAIN, 0);
-    lv_label_set_text(s_rate_val_lbl, "0.00 in/h");
+    lv_label_set_text(s_rate_val_lbl, "-- in/h");
     lv_obj_align(s_rate_val_lbl, LV_ALIGN_TOP_MID, 0, UI_S(20));
 
     s_rate_cat_lbl = lv_label_create(card_rate);
     lv_obj_set_style_text_font(s_rate_cat_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_rate_cat_lbl, COL_TEXT_SOFT, 0);
-    lv_label_set_text(s_rate_cat_lbl, "Dry");
+    lv_label_set_text(s_rate_cat_lbl, "Rate unavailable");
     lv_obj_align(s_rate_cat_lbl, LV_ALIGN_BOTTOM_MID, 0, UI_S(-5));
 
     // Right Card: Rain Probability & Yesterday
@@ -195,14 +196,14 @@ lv_obj_t* screen_rain_create(lv_obj_t *parent) {
     s_yesterday_val_lbl = lv_label_create(card_pop);
     lv_obj_set_style_text_font(s_yesterday_val_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_yesterday_val_lbl, COL_TEXT_SOFT, 0);
-    lv_label_set_text(s_yesterday_val_lbl, "Yest: 0.00 in");
+    lv_label_set_text(s_yesterday_val_lbl, "Yest: --");
     lv_obj_align(s_yesterday_val_lbl, LV_ALIGN_BOTTOM_MID, 0, UI_S(-5));
 
     // Footer info
     s_footer_lbl = lv_label_create(s_panel);
     lv_obj_set_style_text_font(s_footer_lbl, SCREEN_W >= 600 ? &lv_font_montserrat_16 : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(s_footer_lbl, COL_TEXT_MUTED, 0);
-    lv_label_set_text(s_footer_lbl, "Conditions dry  •  Tempest haptic sensor active");
+    lv_label_set_text(s_footer_lbl, "Waiting for rain data");
     lv_obj_align(s_footer_lbl, LV_ALIGN_CENTER, 0, UI_S(108));
 
     return s_panel;
@@ -218,59 +219,50 @@ void screen_rain_update(const TempestState &state) {
 
     // Pulse dot
     uint32_t elapsed_ms = millis() - state.last_packet_millis;
-    lv_obj_set_style_bg_opa(s_udp_pulse, (elapsed_ms < 1200) ? LV_OPA_COVER : 40, 0);
+    lv_obj_set_style_bg_opa(s_udp_pulse, (state.udp_connected && elapsed_ms < 1200) ? LV_OPA_COVER : 40, 0);
 
     // Unit conversions
-    float today_disp = rain_to_unit(state.rain_today_mm, state.units);
-    float rate_disp  = rain_to_unit(state.rain_rate_mm_hr, state.units);
-    float yest_disp  = rain_to_unit(state.rain_yesterday_mm, state.units);
+    const WeatherRain rain = weather_rain(state, millis(), time(nullptr));
+    float today_disp = rain_to_unit(rain.today_mm, state.units);
+    float rate_disp  = rain_to_unit(rain.rate_mm_hr, state.units);
+    float yest_disp  = rain_to_unit(rain.yesterday_mm, state.units);
     const char *u_str = rain_unit_str(state.units);
     const char *r_str = (state.units == UNIT_IMPERIAL) ? "in/h" : "mm/h";
 
     // Hero Today's accumulation
     char accum_buf[16];
     snprintf(accum_buf, sizeof(accum_buf), "%.2f", today_disp);
+    if (!isfinite(today_disp)) snprintf(accum_buf, sizeof(accum_buf), "--");
     lv_label_set_text(s_accum_val_lbl, accum_buf);
+    lv_label_set_text(s_accum_sub_lbl, state.rain_today_complete ? "TODAY'S RAINFALL" : "OBSERVED TODAY (PARTIAL)");
     lv_label_set_text(s_accum_unit_lbl, u_str);
     lv_obj_align_to(s_accum_unit_lbl, s_accum_val_lbl, LV_ALIGN_OUT_RIGHT_BOTTOM, 6, -8);
 
     // Intensity calculation & Arc value
     // Arc scale: 0..100 (where 100 is 1.0 in/hr or 25 mm/hr)
     float max_rate = (state.units == UNIT_IMPERIAL) ? 1.0f : 25.0f;
-    int arc_val = (int)((rate_disp / max_rate) * 100.0f);
+    int arc_val = isfinite(rate_disp) ? (int)((rate_disp / max_rate) * 100.0f) : 0;
     if (arc_val < 0) arc_val = 0;
     if (arc_val > 100) arc_val = 100;
     lv_arc_set_value(s_rate_arc, arc_val);
 
-    const char *cat_str = "Dry";
-    lv_color_t arc_color = COL_RAIN_CYAN;
-    bool active = state.is_raining || (state.rain_rate_mm_hr > 0.0f);
-
-    float r_mm = state.rain_rate_mm_hr;
-    if (r_mm <= 0.05f) {
-        cat_str = "Dry";
-        arc_color = COL_RAIN_CYAN;
-    } else if (r_mm < 2.5f) {
-        cat_str = "Light Rain";
-        arc_color = COL_RAIN_LIGHT;
-    } else if (r_mm < 7.6f) {
-        cat_str = "Moderate Rain";
-        arc_color = COL_RAIN_MOD;
-    } else if (r_mm < 50.0f) {
-        cat_str = "Heavy Rain";
-        arc_color = COL_RAIN_HEAVY;
-    } else {
-        cat_str = "Violent Storm";
-        arc_color = COL_RAIN_VIOLENT;
-    }
-
-    if (state.precip_type == 2) cat_str = "Hail";
-    else if (state.precip_type == 3) cat_str = "Rain + Hail";
+    const char *cat_str = weather_rain_intensity(rain.intensity);
+    lv_color_t arc_color = rain.intensity == RainIntensity::Unknown ? COL_TEXT_MUTED :
+        rain.intensity == RainIntensity::Light ? COL_RAIN_LIGHT :
+        rain.intensity == RainIntensity::Moderate ? COL_RAIN_MOD :
+        rain.intensity == RainIntensity::Heavy ? COL_RAIN_HEAVY :
+        rain.intensity == RainIntensity::VeryHeavy || rain.intensity == RainIntensity::Hail || rain.intensity == RainIntensity::Mixed ? COL_RAIN_VIOLENT : COL_RAIN_CYAN;
+    bool active = rain.active;
 
     lv_obj_set_style_arc_color(s_rate_arc, arc_color, LV_PART_INDICATOR);
 
     // Status Badge
-    if (active) {
+    if (!isfinite(rate_disp)) {
+        lv_label_set_text(s_badge_lbl, rain.received && !weather_observation_fresh(state, millis(), time(nullptr)) ? "RAIN DATA STALE" : "RATE UNAVAILABLE");
+        lv_obj_set_style_text_color(s_badge_lbl, COL_TEXT_SOFT, 0);
+        lv_obj_set_style_bg_color(s_badge, COL_CARD_BG, 0);
+        lv_obj_set_style_border_color(s_badge, COL_CARD_BORDER, 0);
+    } else if (active) {
         lv_label_set_text(s_badge_lbl, LV_SYMBOL_TINT "  ACTIVE PRECIPITATION");
         lv_obj_set_style_text_color(s_badge_lbl, COL_RAIN_CYAN, 0);
         lv_obj_set_style_bg_color(s_badge, lv_color_hex(0x082F49), 0);
@@ -281,7 +273,7 @@ void screen_rain_update(const TempestState &state) {
         lv_obj_set_style_bg_color(s_badge, lv_color_hex(0x0C1C30), 0);
         lv_obj_set_style_border_color(s_badge, COL_CARD_BORDER, 0);
     } else {
-        lv_label_set_text(s_badge_lbl, "NO RAIN DETECTED");
+        lv_label_set_text(s_badge_lbl, "NO RAIN THIS READING");
         lv_obj_set_style_text_color(s_badge_lbl, COL_TEXT_SOFT, 0);
         lv_obj_set_style_bg_color(s_badge, lv_color_hex(0x0F172A), 0);
         lv_obj_set_style_border_color(s_badge, COL_CARD_BORDER, 0);
@@ -290,13 +282,14 @@ void screen_rain_update(const TempestState &state) {
     // Rate Card
     char rate_buf[24];
     snprintf(rate_buf, sizeof(rate_buf), "%.2f %s", rate_disp, r_str);
+    if (!isfinite(rate_disp)) snprintf(rate_buf, sizeof(rate_buf), "-- %s", r_str);
     lv_label_set_text(s_rate_val_lbl, rate_buf);
-    lv_label_set_text(s_rate_cat_lbl, cat_str);
+    lv_label_set_text(s_rate_cat_lbl, isfinite(rate_disp) ? cat_str : "Rate unavailable");
 
     // Chance & Yesterday Card
     char chance_buf[24];
-    if (state.rain_probability_pct >= 0) {
-        snprintf(chance_buf, sizeof(chance_buf), "%d%% POP", state.rain_probability_pct);
+    if (rain.probability_pct >= 0) {
+        snprintf(chance_buf, sizeof(chance_buf), "%d%% POP", rain.probability_pct);
     } else {
         snprintf(chance_buf, sizeof(chance_buf), "-- POP");
     }
@@ -304,16 +297,14 @@ void screen_rain_update(const TempestState &state) {
 
     char yest_buf[24];
     snprintf(yest_buf, sizeof(yest_buf), "Yest: %.2f %s", yest_disp, u_str);
+    if (!isfinite(yest_disp)) snprintf(yest_buf, sizeof(yest_buf), "Yest: --");
     lv_label_set_text(s_yesterday_val_lbl, yest_buf);
 
     // Footer
     char foot_buf[64];
-    if (active) {
-        snprintf(foot_buf, sizeof(foot_buf), "Live precip: %s (%.2f %s)", cat_str, rate_disp, r_str);
-    } else if (today_disp > 0.0f) {
-        snprintf(foot_buf, sizeof(foot_buf), "Rain today: %.2f %s  |  Status: Cleared", today_disp, u_str);
-    } else {
-        snprintf(foot_buf, sizeof(foot_buf), "Conditions dry  |  Tempest haptic sensor active");
-    }
+    char age[24];
+    weather_format_age(age, sizeof(age), rain.received, rain.age_s);
+    if (rain.received) snprintf(foot_buf, sizeof(foot_buf), "%s | %s", rain.source, age);
+    else snprintf(foot_buf, sizeof(foot_buf), "%s", rain.source);
     lv_label_set_text(s_footer_lbl, foot_buf);
 }
