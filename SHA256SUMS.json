@@ -1,0 +1,12 @@
+{
+  "bootloader.bin": "d5a3f3f71099a3f6afe5a608d9bed2dea0e8cd5e6e9f09cbb4120a6ff01375fe",
+  "partitions.bin": "bd0f7954aca2ef7d925ee21aaa1f3dc8822d1d6ce5cbbd26a135e5886bfff6ce",
+  "boot_app0.bin": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+  "firmware.bin": "709eec00c44fe8abd54a26261621bda9549a61917179ff2d911050ca59c0a89e",
+  "tempest-weather-s3-factory.bin": "5c24f41eb4aa87dc414d21af7d8bc9cfbb8e9f5d4e065dfb9bf485a93477847f",
+  "p4/bootloader.bin": "e54933c25f4dfbc6d771397fca6fce38542c63199106d123e1f195228f637d48",
+  "p4/partitions.bin": "bd0f7954aca2ef7d925ee21aaa1f3dc8822d1d6ce5cbbd26a135e5886bfff6ce",
+  "p4/boot_app0.bin": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+  "p4/firmware.bin": "534100ada4227d863d44089fb6c0edda66cded2e955bb285d6be4805846acbbb",
+  "p4/tempest-weather-p4-factory.bin": "44b1573a0cb8f956642aab739ad933a68b2b54adebfe7fb9bc0dbe4ccf826a43"
+}
